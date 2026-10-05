@@ -1,0 +1,28 @@
+<Window x:Class="TgMini.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TG Mini — Первый запуск" Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" Background="#0B0E13"
+        WindowStyle="ToolWindow" ResizeMode="NoResize">
+    <StackPanel Margin="20">
+        <TextBlock Text="Настройка Telegram API" FontSize="16" FontWeight="Bold" Foreground="#E8ECF1" Margin="0,0,0,8"/>
+        <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
+                   Text="Для работы нужны ключи api_id и api_hash. Их можно бесплатно получить за 1 минуту на сайте https://my.telegram.org (раздел API development tools)."/>
+
+        <TextBlock Text="API ID:" Foreground="#E8ECF1" FontSize="12" Margin="0,0,0,4"/>
+        <TextBox x:Name="ApiIdBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13" Margin="0,0,0,12"/>
+
+        <TextBlock Text="API Hash:" Foreground="#E8ECF1" FontSize="12" Margin="0,0,0,4"/>
+        <TextBox x:Name="ApiHashBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13" Margin="0,0,0,12"/>
+
+        <TextBlock Text="Номер телефона (в международном формате, например +380... / +7...):" Foreground="#E8ECF1" FontSize="12" Margin="0,0,0,4"/>
+        <TextBox x:Name="PhoneBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13" Margin="0,0,0,16"/>
+
+        <TextBlock x:Name="ErrorLabel" Foreground="#FF5C7A" FontSize="11" Visibility="Collapsed" Margin="0,0,0,12"/>
+
+        <DockPanel>
+            <Button Content="Сохранить и продолжить" Height="36" Click="Save_Click"
+                    Background="#2EA6FF" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="16,0"/>
+        </DockPanel>
+    </StackPanel>
+</Window>

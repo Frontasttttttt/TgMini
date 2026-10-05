@@ -1,0 +1,11 @@
+# .NET — never commit builds
+bin/
+obj/
+dist/
+dist*/
+*.user
+.vs/
+*.exe
+*.dll
+config.toml
+*.session
