@@ -6,22 +6,23 @@ namespace TgMini;
 public partial class SetupWindow : Window
 {
     private readonly AppConfig _cfg;
+    private readonly MainWindow? _owner;
 
-    public SetupWindow(AppConfig cfg)
+    public SetupWindow(AppConfig cfg, MainWindow? owner = null)
     {
         InitializeComponent();
         _cfg = cfg;
+        _owner = owner;
         ApiIdBox.Text = cfg.Telegram.ApiId == 0 ? "" : cfg.Telegram.ApiId.ToString();
         ApiHashBox.Text = cfg.Telegram.ApiHash;
         PhoneBox.Text = cfg.Telegram.Phone;
-        try { System.IO.File.WriteAllText(AppConfig.UserConfigPath + ".dbg", "SetupWindow created at " + DateTime.Now + "\n"); } catch { }
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(ApiIdBox.Text.Trim(), out var apiId) || apiId == 0)
         {
-            ShowError("Введите корректный числовой API ID.");
+            ShowError("Введите корректный API ID.");
             return;
         }
 
@@ -35,7 +36,7 @@ public partial class SetupWindow : Window
         var phone = PhoneBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(phone) || !phone.StartsWith('+'))
         {
-            ShowError("Номер должен начинаться с + (например +380... или +7...).");
+            ShowError("Номер должен начинаться с +.");
             return;
         }
 
@@ -45,6 +46,12 @@ public partial class SetupWindow : Window
 
         AppConfig.Save(_cfg);
         DialogResult = true;
+        Close();
+    }
+
+    private void QrButton_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
         Close();
     }
 

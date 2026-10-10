@@ -72,14 +72,10 @@ public partial class MainWindow : Window
             Status("UI-режим без подключения (TGMINI_NO_CONNECT=1)");
             return;
         }
-        if (_cfg.Telegram.ApiId == 0 || string.IsNullOrWhiteSpace(_cfg.Telegram.ApiHash) || string.IsNullOrWhiteSpace(_cfg.Telegram.Phone))
+        if (_cfg.Telegram.ApiId == 0 || string.IsNullOrWhiteSpace(_cfg.Telegram.ApiHash))
         {
-            var setup = new SetupWindow(_cfg) { Owner = this };
-            if (setup.ShowDialog() != true)
-            {
-                Status("Настройка не завершена. Приложение не может продолжить работу.");
-                return;
-            }
+            var setup = new SetupWindow(_cfg, this) { Owner = this };
+            setup.ShowDialog();
         }
         Status("Подключаюсь к Telegram...");
         var bridge = new WTelegramBridge(_cfg);
@@ -90,17 +86,13 @@ public partial class MainWindow : Window
         {
             if (!bridge.HasSession)
             {
-                // Первый вход: сразу QR, без попыток ввода кода (их всего 3 на hash)
                 Status("Сессии нет — открываю QR-вход...");
                 var ok = await QrLoginAsync(bridge);
-                if (!ok)
+                if (ok)
                 {
-                    Status("QR отменён — попробуйте ввести код из Telegram (Отправить код 1 раз).");
-                    await bridge.ConnectAsync();
-                    await RefreshAsync(force: true);
-                    Status($"Готово. Чатов: {_all.Count}, папок: {_folders.Count}");
+                    return;
                 }
-                return;
+                Status("QR отменён — пробую вход по коду (Отправить код 1 раз).");
             }
             await bridge.ConnectAsync();
             Status("Загружаю чаты...");
@@ -109,7 +101,7 @@ public partial class MainWindow : Window
         }
         catch (Exception e)
         {
-            Status($"Вход по коду не удался ({e.Message}). Предлагаю QR...");
+            Status($"Вход не удался ({e.Message}). Предлагаю QR...");
             await QrLoginAsync(bridge);
         }
     }

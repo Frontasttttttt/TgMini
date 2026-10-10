@@ -13,7 +13,9 @@ public sealed class AppConfig
     public HotkeysSection Hotkeys { get; } = new();
     public TraySection Tray { get; } = new();
 
-    public sealed class TelegramSection { public int ApiId; public string ApiHash = ""; public string Phone = ""; }
+    public const int DefaultApiId = 2040;
+    public const string DefaultApiHash = "b18441a1ff607e10a989891a5462e627";
+    public sealed class TelegramSection { public int ApiId = DefaultApiId; public string ApiHash = DefaultApiHash; public string Phone = ""; }
     public sealed class FilterSection
     {
         public List<string> AllowOnly = new();
@@ -63,6 +65,10 @@ public sealed class AppConfig
         var cfg = new AppConfig();
         var file = path ?? FindConfig();
         if (file is not null && File.Exists(file)) cfg.Parse(File.ReadAllLines(file));
+        var envId = Environment.GetEnvironmentVariable("TG_API_ID");
+        if (int.TryParse(envId, out var eid) && eid != 0) cfg.Telegram.ApiId = eid;
+        var envHash = Environment.GetEnvironmentVariable("TG_API_HASH");
+        if (!string.IsNullOrWhiteSpace(envHash)) cfg.Telegram.ApiHash = envHash.Trim();
         return cfg;
     }
 

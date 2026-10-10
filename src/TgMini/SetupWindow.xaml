@@ -18,6 +18,11 @@
         <TextBlock Text="Номер телефона (в международном формате, например +380... / +7...):" Foreground="#E8ECF1" FontSize="12" Margin="0,0,0,4"/>
         <TextBox x:Name="PhoneBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13" Margin="0,0,0,16"/>
 
+        <Button Content="Войти через QR"
+                Style="{StaticResource GhostBtn}"
+                Margin="0,12,0,0"
+                Click="QrButton_Click"/>
+
         <TextBlock x:Name="ErrorLabel" Foreground="#FF5C7A" FontSize="11" Visibility="Collapsed" Margin="0,0,0,12"/>
 
         <DockPanel>
