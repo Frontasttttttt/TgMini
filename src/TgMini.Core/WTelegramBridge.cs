@@ -98,7 +98,7 @@ public sealed class WTelegramBridge : IBridge
             foreach (var u in d.users.Values)
             {
                 if (u is not User x) continue;
-                _names[x.id] = Display(x);
+                _names[x.id] = (x.id == _me) ? "Избранное" : Display(x);
                 _kinds[x.id] = x.IsBot ? ChatKind.Bot : ChatKind.User;
                 try { _peers[x.id] = (InputPeer)x; } catch { /* нет access_hash */ }
             }
@@ -166,12 +166,14 @@ public sealed class WTelegramBridge : IBridge
             if (m is Message mm)
                 top[(Key(mm.peer_id), mm.id)] = mm;
         var out_ = new List<DialogInfo>(Math.Min(limit, d.dialogs.Length));
+        var pinOrder = 0;
         foreach (var dbase in d.dialogs)
         {
             if (dbase is not Dialog dlg) continue;
             var key = Key(dlg.peer);
             var isPinned = (dlg.flags & Dialog.Flags.pinned) != 0;
-            var name = _names.GetValueOrDefault(key) ?? (key == _me ? "Saved Messages" : $"chat{key}");
+            var pIdx = isPinned ? pinOrder++ : int.MaxValue;
+            var name = (key == _me) ? "Избранное" : (_names.GetValueOrDefault(key) ?? $"chat{key}");
             var last = "";
             DateTime? date = null;
             if (top.TryGetValue((key, dlg.top_message), out var m2) && m2 is Message mm2)
@@ -184,12 +186,13 @@ public sealed class WTelegramBridge : IBridge
             var muted = dlg.notify_settings?.mute_until is { } mu && (mu > DateTime.Now || mu > DateTime.UtcNow);
             out_.Add(new DialogInfo(key, name, last[..Math.Min(90, last.Length)],
                 date, dlg.unread_count, kind is ChatKind.Group or ChatKind.Channel,
-                kind, muted, dlg.folder_id == 1, isPinned));
+                kind, muted, dlg.folder_id == 1, isPinned, pIdx));
             if (out_.Count >= limit) break;
         }
         out_.Sort((a, b) =>
         {
             if (a.IsPinned != b.IsPinned) return b.IsPinned ? 1 : -1;
+            if (a.IsPinned && b.IsPinned) return a.PinnedIndex.CompareTo(b.PinnedIndex);
             return (b.Date ?? DateTime.MinValue).CompareTo(a.Date ?? DateTime.MinValue);
         });
         return out_;
@@ -531,23 +534,28 @@ public sealed class WTelegramBridge : IBridge
         {
             foreach (var upd in u.UpdateList)
             {
-                if (upd is not UpdateNewMessage unm) continue;
-                if (unm.message is not Message m) continue;
-                if (IsOut(m)) continue;   // свои исходящие не эмитим (ignore_outgoing)
+                Message? m = upd switch
+                {
+                    UpdateNewMessage unm => unm.message as Message,
+                    UpdateEditMessage uem => uem.message as Message,
+                    _ => null
+                };
+                if (m is null) continue;
+                var isOut = IsOut(m);
                 var chatKey = Key(m.peer_id);
                 var senderKey = m.from_id is null ? 0 : Key(m.from_id);
                 string name;
                 lock (_gate)
-                    name = _names.GetValueOrDefault(senderKey, _names.GetValueOrDefault(chatKey, "Telegram"));
+                    name = isOut ? "Вы" : _names.GetValueOrDefault(senderKey, _names.GetValueOrDefault(chatKey, "Telegram"));
                 var (kind, label) = DescribeMedia(m);
                 var text = m.message ?? "";
                 if (string.IsNullOrWhiteSpace(text)) text = MediaLabel(kind, label);
                 var isGroup = chatKey < 0;
                 var mentioned = !string.IsNullOrEmpty(_meUsername) &&
                                 text.Contains("@" + _meUsername, StringComparison.OrdinalIgnoreCase);
-                Message?.Invoke(new IncomingMessage(chatKey, m.id, false, senderKey, name, text,
+                Message?.Invoke(new IncomingMessage(chatKey, m.id, isOut, senderKey, name, text,
                     isGroup, mentioned, m.date, kind, label,
-                    kind == MediaKind.Text ? "" : name));
+                    isOut ? "Вы" : (kind == MediaKind.Text ? "" : name)));
             }
         }
         catch (Exception e) { Console.WriteLine($"updates err: {e.Message}"); }

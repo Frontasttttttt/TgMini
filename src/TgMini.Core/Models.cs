@@ -18,7 +18,8 @@ public sealed record DialogInfo(
     ChatKind Kind,
     bool Muted,
     bool Archived,
-    bool IsPinned = false);
+    bool IsPinned = false,
+    int PinnedIndex = 0);
 
 /// <summary>Одно сообщение ленты. Ср. dict из Bridge.get_history() / info из _handle().</summary>
 public sealed record MessageInfo(

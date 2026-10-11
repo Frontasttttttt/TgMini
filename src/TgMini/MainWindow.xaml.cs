@@ -144,6 +144,7 @@ public partial class MainWindow : Window
 
     private static string GetInitials(string name)
     {
+        if (name is "Избранное" or "Saved Messages") return "⭐";
         if (string.IsNullOrWhiteSpace(name)) return "TG";
         var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length >= 2)
@@ -251,16 +252,67 @@ public partial class MainWindow : Window
             if (d is not null)
             {
                 _all.Remove(d);
-                var unread = _peer == m.ChatId ? 0 : d.Unread + 1;
+                var unread = _peer == m.ChatId || m.Out ? 0 : d.Unread + 1;
                 _all.Insert(0, d with { LastMessage = m.Text, Unread = unread, Date = m.Date });
                 PaintDialogs();
             }
             if (_peer == m.ChatId)
             {
                 _ = LoadHistoryAsync();
-                if (_bridge is not null) _ = _bridge.MarkReadAsync(_peer);
+                if (_bridge is not null && !m.Out) _ = _bridge.MarkReadAsync(_peer);
+            }
+
+            // Показываем оверлей и играем звук только для входящих чужих сообщений
+            if (!m.Out && NotifyFilter.ShouldShow(_cfg.Filter, m.Author, m.SenderId, null, m.IsGroup, m.Mentioned, false))
+            {
+                PlaySoundAndNotify(m);
             }
         });
+    }
+
+    private void PlaySoundAndNotify(IncomingMessage m)
+    {
+        try
+        {
+            System.Media.SystemSounds.Asterisk.Play();
+        }
+        catch { /* ignore */ }
+
+        try
+        {
+            var notif = new NotificationWindow(
+                m.ChatId,
+                m.Name,
+                m.Text,
+                GetInitials(m.Name),
+                GetAvatarColor(m.Name),
+                onOpen: chatId => Dispatcher.Invoke(() => SelectChat(chatId)));
+            notif.Show();
+        }
+        catch { /* ignore */ }
+    }
+
+    private void SelectChat(long chatId)
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+        var row = _rows.FirstOrDefault(r => r.Id == chatId);
+        if (row is not null)
+        {
+            DialogList.SelectedItem = row;
+        }
+        else
+        {
+            var d = _all.FirstOrDefault(x => x.Id == chatId);
+            if (d is not null)
+            {
+                _peer = d.Id;
+                _peerName = d.Name;
+                ChatTitle.Text = _peerName;
+                _ = LoadHistoryAsync();
+            }
+        }
     }
 
     private async Task RefreshAsync(bool force = false)
@@ -429,18 +481,24 @@ public partial class MainWindow : Window
 
     private MsgRow ToRow(MessageInfo m)
     {
-        var hint = m.Kind switch
+        string hint;
+        if (m.Kind is MediaKind.Photo or MediaKind.Sticker or MediaKind.Gif)
         {
-            MediaKind.Photo => "🖼 Фото (клик чтобы открыть)",
-            MediaKind.Video => "🎬 Видео (клик чтобы открыть)",
-            MediaKind.RoundVideo => "⭕ Кружочек (клик чтобы открыть)",
-            MediaKind.Gif => "🎞 GIF (клик чтобы открыть)",
-            MediaKind.Sticker => $"✨ Стикер {m.MediaLabel}",
-            MediaKind.Voice => $"🎤 Голосовое {m.MediaLabel} (клик чтобы слушать)",
-            MediaKind.Audio => $"🎵 Аудио {m.MediaLabel} (клик чтобы слушать)",
-            MediaKind.File => $"📄 {m.MediaLabel} — скачать",
-            _ => ""
-        };
+            // Картинки и стикеры видны прямо в чате — убираем лишний текст
+            hint = "";
+        }
+        else
+        {
+            hint = m.Kind switch
+            {
+                MediaKind.Voice => $"🎤 Голосовое {m.MediaLabel}",
+                MediaKind.Audio => $"🎵 Аудио {m.MediaLabel}",
+                MediaKind.RoundVideo => "⭕ Кружочек",
+                MediaKind.Video => "🎬 Видео",
+                MediaKind.File => $"📄 {m.MediaLabel} — скачать",
+                _ => ""
+            };
+        }
         var text = m.Kind == MediaKind.Text ? m.Text : (m.Text.Length > 0 && !m.Text.StartsWith('[') ? m.Text : "");
         return new MsgRow
         {
@@ -605,5 +663,30 @@ public partial class MainWindow : Window
             e.Handled = true;
             Send_Click(sender, e);
         }
+    }
+
+    private void DialogArchive_Click(object sender, RoutedEventArgs e)
+    {
+        if (DialogList.SelectedItem is not DialogRow r) return;
+        var d = _all.FirstOrDefault(x => x.Id == r.Id);
+        if (d is null) return;
+        var idx = _all.IndexOf(d);
+        var newArchived = !d.Archived;
+        _all[idx] = d with { Archived = newArchived };
+        BuildFolderButtons();
+        PaintDialogs();
+        Status(newArchived ? $"Чат '{d.Name}' перемещён в архив" : $"Чат '{d.Name}' извлечён из архива");
+    }
+
+    private void DialogMute_Click(object sender, RoutedEventArgs e)
+    {
+        if (DialogList.SelectedItem is not DialogRow r) return;
+        var d = _all.FirstOrDefault(x => x.Id == r.Id);
+        if (d is null) return;
+        var idx = _all.IndexOf(d);
+        var newMuted = !d.Muted;
+        _all[idx] = d with { Muted = newMuted };
+        PaintDialogs();
+        Status(newMuted ? $"Чат '{d.Name}' заглушён" : $"Звук чата '{d.Name}' включён");
     }
 }
