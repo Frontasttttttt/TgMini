@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -10,57 +11,44 @@ public partial class App : Application
         Path.Combine(AppContext.BaseDirectory, "crash.log");
     private static readonly string WtLogPath =
         Path.Combine(AppContext.BaseDirectory, "wt.log");
-    private static EventWaitHandle? _wakeUpEvent;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    private const int SW_RESTORE = 9;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        bool createdNew;
         try
         {
-            _wakeUpEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\TgMini.WakeUp", out createdNew);
-        }
-        catch
-        {
-            createdNew = true;
-        }
+            var current = System.Diagnostics.Process.GetCurrentProcess();
+            var others = System.Diagnostics.Process.GetProcessesByName(current.ProcessName)
+                .Where(p => p.Id != current.Id)
+                .ToList();
 
-        if (!createdNew)
-        {
-            // Второй запуск: будим уже открытый экземпляр и тихо выходим
-            try { _wakeUpEvent?.Set(); } catch { /* ignore */ }
-            Shutdown();
-            return;
-        }
-
-        // Фоновый поток ожидает повторных запусков и разворачивает окно
-        var wakeThread = new Thread(() =>
-        {
-            while (true)
+            foreach (var other in others)
             {
-                try
+                if (other.MainWindowHandle != IntPtr.Zero)
                 {
-                    _wakeUpEvent?.WaitOne();
-                    Dispatcher.Invoke(() =>
-                    {
-                        if (MainWindow is { } w)
-                        {
-                            w.Show();
-                            if (w.WindowState == WindowState.Minimized)
-                                w.WindowState = WindowState.Normal;
-                            w.Activate();
-                            w.Focus();
-                        }
-                    });
+                    // Уже есть запущенное окно: разворачиваем и выходим
+                    ShowWindow(other.MainWindowHandle, SW_RESTORE);
+                    SetForegroundWindow(other.MainWindowHandle);
+                    Shutdown();
+                    return;
                 }
-                catch { break; }
+                else
+                {
+                    // Зависший без окна процесс — убиваем
+                    try { other.Kill(); } catch { }
+                }
             }
-        })
-        {
-            IsBackground = true
-        };
-        wakeThread.Start();
+        }
+        catch { /* ignore */ }
     }
 
     public App()
