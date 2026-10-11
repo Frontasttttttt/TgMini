@@ -21,6 +21,8 @@ public interface IBridge : IDisposable
     Task<bool> SendAsync(long peerId, string text, int replyTo = 0, CancellationToken ct = default);
     Task<bool> SendFileAsync(long peerId, string path, string caption = "", int replyTo = 0, IProgress<(long Sent, long Total)>? progress = null, CancellationToken ct = default);
     Task MarkReadAsync(long peerId, CancellationToken ct = default);
+    Task<string?> EnsureAvatarAsync(long peerId, CancellationToken ct = default);
+    Task<bool> ToggleChatFolderAsync(int folderId, long peerId, CancellationToken ct = default);
 
     /// <summary>
     /// QR-вход: показывает QR до тех пор, пока пользователь не отсканирует его

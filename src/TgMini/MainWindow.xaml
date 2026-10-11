@@ -44,12 +44,17 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <!-- Круглая аватарка с инициалами -->
-                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17"
-                        Background="{Binding AvatarColor}" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <!-- Круглая аватарка с инициалами или фото -->
+                <Grid Grid.Column="0" Width="34" Height="34" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <Ellipse Fill="{Binding AvatarColor}"/>
                     <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="12" FontWeight="Bold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
+                    <Ellipse Visibility="{Binding AvatarVisible}">
+                        <Ellipse.Fill>
+                            <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                </Grid>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
                     <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#E8ECF1"
                                FontWeight="{Binding NameWeight}" TextTrimming="CharacterEllipsis"/>
@@ -109,9 +114,10 @@
                          ItemTemplate="{StaticResource DialogRowTpl}"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ContextMenu>
-                        <ContextMenu>
+                        <ContextMenu Opened="DialogContextMenu_Opened">
                             <MenuItem Header="🗄️ В архив / Из архива" Click="DialogArchive_Click"/>
                             <MenuItem Header="🔇 Заглушить / Включить звук" Click="DialogMute_Click"/>
+                            <MenuItem x:Name="MenuFolders" Header="📁 В папку..."/>
                         </ContextMenu>
                     </ListBox.ContextMenu>
                 </ListBox>

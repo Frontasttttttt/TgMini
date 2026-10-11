@@ -5,7 +5,8 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" Focusable="False" ShowActivated="False">
     <Border Background="#F011151C" CornerRadius="12" BorderBrush="#2EA6FF" BorderThickness="1.5"
-            Margin="8" Cursor="Hand" MouseLeftButtonUp="Card_Click">
+            Margin="8" Cursor="Hand" MouseLeftButtonUp="Card_Click"
+            MouseEnter="Card_MouseEnter" MouseLeave="Card_MouseLeave">
         <Border.Effect>
             <DropShadowEffect Color="Black" BlurRadius="16" ShadowDepth="4" Opacity="0.7"/>
         </Border.Effect>
@@ -13,24 +14,37 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+            <!-- Верхняя строка (актуальное сообщение) -->
             <Grid Grid.Row="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="38"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <!-- Аватарка -->
-                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17"
-                        Background="{Binding AvatarColor}" VerticalAlignment="Top">
-                    <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="12" FontWeight="Bold"
+                <!-- Аватарка (круг с фото или инициалами) -->
+                <Grid Grid.Column="0" Width="34" Height="34" VerticalAlignment="Top">
+                    <Ellipse x:Name="AvatarBg" Fill="#2EA6FF"/>
+                    <TextBlock x:Name="AvatarInitials" Text="TG" Foreground="White" FontSize="12" FontWeight="Bold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
+                    <Ellipse x:Name="AvatarPhoto" Visibility="Collapsed">
+                        <Ellipse.Fill>
+                            <ImageBrush x:Name="AvatarPhotoBrush" Stretch="UniformToFill"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                </Grid>
                 <!-- Текст -->
                 <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                    <TextBlock Text="{Binding Title}" Foreground="#E8ECF1" FontSize="13" FontWeight="Bold"
-                               TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding Text}" Foreground="#B0B8C4" FontSize="12" Margin="0,2,0,0"
+                    <DockPanel>
+                        <Border x:Name="BadgeCount" Background="#2EA6FF" CornerRadius="8" Padding="6,1"
+                                Margin="6,0,0,0" DockPanel.Dock="Right" Visibility="Collapsed">
+                            <TextBlock x:Name="BadgeCountText" Text="+2" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                        </Border>
+                        <TextBlock x:Name="TitleText" Text="Имя" Foreground="#E8ECF1" FontSize="13" FontWeight="Bold"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </DockPanel>
+                    <TextBlock x:Name="BodyText" Text="Сообщение" Foreground="#B0B8C4" FontSize="12" Margin="0,2,0,0"
                                TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 <!-- Кнопка закрытия -->
@@ -38,8 +52,27 @@
                         Foreground="#8B949E" BorderThickness="0" FontSize="11" Cursor="Hand"
                         VerticalAlignment="Top" Click="Close_Click"/>
             </Grid>
+
+            <!-- Раскрывающийся стек сообщений при наведении мыши -->
+            <StackPanel Grid.Row="1" x:Name="StackPanelExpanded" Margin="0,8,0,0" Visibility="Collapsed">
+                <Separator Background="#222C3D" Margin="0,0,0,6"/>
+                <TextBlock Text="ПОСЛЕДНИЕ СООБЩЕНИЯ" FontSize="10" FontWeight="Bold" Foreground="#8B949E" Margin="0,0,0,4"/>
+                <ItemsControl x:Name="StackedList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#161C26" CornerRadius="6" Padding="8,4" Margin="0,0,0,4">
+                                <DockPanel>
+                                    <TextBlock Text="{Binding Time}" FontSize="10" Foreground="#8B949E" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                    <TextBlock Text="{Binding Text}" FontSize="12" Foreground="#E8ECF1" TextTrimming="CharacterEllipsis"/>
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
             <!-- Индикатор времени (таймер автозакрытия) -->
-            <ProgressBar Grid.Row="1" x:Name="TimeoutBar" Height="2" Margin="0,8,0,0"
+            <ProgressBar Grid.Row="2" x:Name="TimeoutBar" Height="2" Margin="0,8,0,0"
                          Background="#1A2230" Foreground="#2EA6FF" BorderThickness="0"
                          Minimum="0" Maximum="100" Value="100"/>
         </Grid>

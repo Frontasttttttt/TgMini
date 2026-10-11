@@ -14,7 +14,7 @@ using TgMini.Core.Models;
 
 namespace TgMini;
 
-public sealed class DialogRow
+public sealed class DialogRow : INotifyPropertyChanged
 {
     public long Id { get; init; }
     public string Name { get; init; } = "";
@@ -26,6 +26,25 @@ public sealed class DialogRow
     public string PinnedVisible => IsPinned ? "Visible" : "Collapsed";
     public string NameWeight => Unread > 0 ? "Bold" : "Normal";
     public string BadgeVisible => Unread > 0 ? "Visible" : "Collapsed";
+
+    private string _avatarPath = "";
+    public string AvatarPath
+    {
+        get => _avatarPath;
+        set
+        {
+            if (_avatarPath != value)
+            {
+                _avatarPath = value;
+                OnPropertyChanged(nameof(AvatarPath));
+                OnPropertyChanged(nameof(AvatarVisible));
+            }
+        }
+    }
+    public string AvatarVisible => !string.IsNullOrEmpty(_avatarPath) && File.Exists(_avatarPath) ? "Visible" : "Collapsed";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 public sealed class MsgRow : INotifyPropertyChanged
@@ -268,24 +287,29 @@ public partial class MainWindow : Window
 
     private void PlaySoundAndNotify(IncomingMessage m)
     {
-        try
-        {
-            System.Media.SystemSounds.Asterisk.Play();
-        }
-        catch { /* ignore */ }
+        NotificationSound.Play();
 
-        try
+        _ = Task.Run(async () =>
         {
-            var notif = new NotificationWindow(
-                m.ChatId,
-                m.Name,
-                m.Text,
-                GetInitials(m.Name),
-                GetAvatarColor(m.Name),
-                onOpen: chatId => Dispatcher.Invoke(() => SelectChat(chatId)));
-            notif.Show();
-        }
-        catch { /* ignore */ }
+            string? avatarPath = null;
+            if (_bridge is not null)
+            {
+                var id = m.SenderId != 0 ? m.SenderId : m.ChatId;
+                avatarPath = await _bridge.EnsureAvatarAsync(id);
+            }
+
+            Dispatcher.Invoke(() =>
+            {
+                NotificationWindow.ShowOrStack(
+                    m.ChatId,
+                    m.Name,
+                    m.Text,
+                    GetInitials(m.Name),
+                    GetAvatarColor(m.Name),
+                    avatarPath,
+                    onOpen: chatId => Dispatcher.Invoke(() => SelectChat(chatId)));
+            });
+        });
     }
 
     private void SelectChat(long chatId)
@@ -386,7 +410,7 @@ public partial class MainWindow : Window
                 if (!FolderMatcher.Match(d.Id, KindStr(d.Kind), d.Unread, d.Muted, d.Archived, flt)) continue;
             }
 
-            _rows.Add(new DialogRow
+            var row = new DialogRow
             {
                 Id = d.Id,
                 Name = d.Name,
@@ -395,6 +419,21 @@ public partial class MainWindow : Window
                 Preview = d.LastMessage,
                 Unread = d.Unread,
                 IsPinned = d.IsPinned
+            };
+            _rows.Add(row);
+
+            var peerId = d.Id;
+            _ = Task.Run(async () =>
+            {
+                if (_bridge is null) return;
+                var path = await _bridge.EnsureAvatarAsync(peerId);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (row.Id == peerId) row.AvatarPath = path;
+                    });
+                }
             });
             if (_rows.Count >= 60) break;
         }
@@ -684,5 +723,52 @@ public partial class MainWindow : Window
         _all[idx] = d with { Muted = newMuted };
         PaintDialogs();
         Status(newMuted ? $"Чат '{d.Name}' заглушён" : $"Звук чата '{d.Name}' включён");
+    }
+
+    private void DialogContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        MenuFolders.Items.Clear();
+        if (DialogList.SelectedItem is not DialogRow r)
+        {
+            MenuFolders.IsEnabled = false;
+            return;
+        }
+        MenuFolders.IsEnabled = true;
+        if (_folders.Count == 0)
+        {
+            MenuFolders.Items.Add(new MenuItem { Header = "(нет папок)", IsEnabled = false });
+            return;
+        }
+        foreach (var f in _folders)
+        {
+            var inFolder = f.Peers.Contains(r.Id);
+            var mi = new MenuItem
+            {
+                Header = f.Title,
+                IsCheckable = true,
+                IsChecked = inFolder
+            };
+            var folderId = f.Id;
+            var peerId = r.Id;
+            var title = f.Title;
+            var name = r.Name;
+            mi.Click += async (_, _) =>
+            {
+                if (_bridge is null) return;
+                var ok = await _bridge.ToggleChatFolderAsync(folderId, peerId);
+                if (ok)
+                {
+                    Status(inFolder
+                        ? $"Чат '{name}' удалён из папки '{title}'"
+                        : $"Чат '{name}' добавлен в папку '{title}'");
+                    await RefreshAsync(force: true);
+                }
+                else
+                {
+                    Status($"Не удалось обновить папку '{title}'");
+                }
+            };
+            MenuFolders.Items.Add(mi);
+        }
     }
 }

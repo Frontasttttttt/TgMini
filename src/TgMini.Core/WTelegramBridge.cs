@@ -452,6 +452,82 @@ public sealed class WTelegramBridge : IBridge
         return "";
     }
 
+    public async Task<string?> EnsureAvatarAsync(long peerId, CancellationToken ct = default)
+    {
+        var cacheDir = Path.Combine(MediaCache.Dir, "avatars");
+        try { Directory.CreateDirectory(cacheDir); } catch { }
+        var path = Path.Combine(cacheDir, $"{peerId}.jpg");
+        if (File.Exists(path) && new FileInfo(path).Length > 0) return path;
+
+        if (_c is null) return null;
+        IPeerInfo? peerInfo = null;
+        lock (_gate)
+        {
+            if (_dlg is not null)
+            {
+                if (peerId > 0 && _dlg.users.TryGetValue(peerId, out var u)) peerInfo = u;
+                else if (peerId < 0)
+                {
+                    var chId = -(peerId + 1_000_000_000_000L);
+                    if (_dlg.chats.TryGetValue(chId, out var ch)) peerInfo = ch;
+                    else if (_dlg.chats.TryGetValue(-peerId, out var g)) peerInfo = g;
+                }
+            }
+        }
+        if (peerInfo is null) return null;
+
+        try
+        {
+            using var fs = File.Create(path);
+            await _c.DownloadProfilePhotoAsync(peerInfo, fs, big: false);
+            if (fs.Length == 0)
+            {
+                fs.Dispose();
+                try { File.Delete(path); } catch { }
+                return null;
+            }
+            return path;
+        }
+        catch
+        {
+            try { File.Delete(path); } catch { }
+            return null;
+        }
+    }
+
+    public async Task<bool> ToggleChatFolderAsync(int folderId, long peerId, CancellationToken ct = default)
+    {
+        if (_c is null) return false;
+        try
+        {
+            var res = await _c.Messages_GetDialogFilters();
+            var target = res?.filters?.OfType<DialogFilter>().FirstOrDefault(x => x.id == folderId);
+            if (target is null) return false;
+
+            var peer = await ResolveAsync(peerId);
+            if (peer is null) return false;
+
+            var incList = target.include_peers?.ToList() ?? new List<InputPeer>();
+            var exists = incList.Any(p => Key(p) == peerId);
+            if (exists)
+            {
+                incList.RemoveAll(p => Key(p) == peerId);
+            }
+            else
+            {
+                incList.Add(peer);
+            }
+            target.include_peers = incList.ToArray();
+            await _c.Messages_UpdateDialogFilter(folderId, target);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"ToggleChatFolder error: {e.Message}");
+            return false;
+        }
+    }
+
     public async Task<string> DownloadToAsync(long chatId, int msgId, string destPath, IProgress<(long Sent, long Total)>? progress = null, CancellationToken ct = default)
     {
         try
