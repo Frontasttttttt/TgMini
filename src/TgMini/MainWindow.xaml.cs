@@ -123,15 +123,6 @@ public partial class MainWindow : Window
         catch { /* ignore */ }
     }
 
-    protected override void OnStateChanged(EventArgs e)
-    {
-        base.OnStateChanged(e);
-        if (WindowState == WindowState.Minimized && _cfg.Tray.Enabled)
-        {
-            Hide();
-        }
-    }
-
     protected override void OnClosing(CancelEventArgs e)
     {
         if (!_isQuitting && _cfg.Tray.Enabled)
@@ -266,8 +257,9 @@ public partial class MainWindow : Window
                 if (_bridge is not null && !m.Out) _ = _bridge.MarkReadAsync(_peer);
             }
 
-            // Показываем оверлей и играем звук только для входящих чужих сообщений
-            if (!m.Out && NotifyFilter.ShouldShow(_cfg.Filter, m.Author, m.SenderId, null, m.IsGroup, m.Mentioned, false))
+            // Показываем оверлей и играем звук только для входящих чужих сообщений из НЕЗАГЛУШЕННЫХ чатов
+            var isMuted = d?.Muted == true;
+            if (!m.Out && !isMuted && NotifyFilter.ShouldShow(_cfg.Filter, m.Author, m.SenderId, null, m.IsGroup, m.Mentioned, false))
             {
                 PlaySoundAndNotify(m);
             }
