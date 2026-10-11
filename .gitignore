@@ -9,3 +9,7 @@ dist*/
 *.dll
 config.toml
 *.session
+release_pub/
+*.zip
+*.log
+

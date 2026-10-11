@@ -1,5 +1,9 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,13 +18,17 @@ public sealed class DialogRow
 {
     public long Id { get; init; }
     public string Name { get; init; } = "";
+    public string Initials { get; init; } = "";
+    public string AvatarColor { get; init; } = "#2EA6FF";
     public string Preview { get; init; } = "";
-    public int Unread { get; init; }
+    public int Unread { get; set; }
+    public bool IsPinned { get; init; }
+    public string PinnedVisible => IsPinned ? "Visible" : "Collapsed";
     public string NameWeight => Unread > 0 ? "Bold" : "Normal";
     public string BadgeVisible => Unread > 0 ? "Visible" : "Collapsed";
 }
 
-public sealed class MsgRow
+public sealed class MsgRow : INotifyPropertyChanged
 {
     public int Id { get; init; }
     public string Text { get; init; } = "";
@@ -35,12 +43,34 @@ public sealed class MsgRow
     public string Align { get; init; } = "Left";
     public double WrapWidth { get; init; } = 460;
     public string Time { get; init; } = "";
+
+    private string _imagePath = "";
+    public string ImagePath
+    {
+        get => _imagePath;
+        set
+        {
+            if (_imagePath != value)
+            {
+                _imagePath = value;
+                OnPropertyChanged(nameof(ImagePath));
+                OnPropertyChanged(nameof(ImageVisible));
+            }
+        }
+    }
+    public string ImageVisible => !string.IsNullOrEmpty(_imagePath) && File.Exists(_imagePath) ? "Visible" : "Collapsed";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 public partial class MainWindow : Window
 {
     private static readonly string[] AuthorColors =
         { "#2EA6FF", "#7C5CFF", "#00C48C", "#FF9F0A", "#FF5C7A", "#64D2FF", "#E6A23C", "#9ECE6A" };
+
+    private static readonly string[] AvatarColors =
+        { "#E17076", "#FAA356", "#A371F7", "#54A0FF", "#00D2D3", "#1DD1A1", "#576574", "#FF6B6B" };
 
     private readonly AppConfig _cfg = AppConfig.Load();
     private IBridge? _bridge;
@@ -54,13 +84,84 @@ public partial class MainWindow : Window
     private string _peerName = "";
     private int _replyTo;
 
+    private TrayHelper? _tray;
+    private bool _isQuitting;
+
     public MainWindow()
     {
-        try { System.IO.File.WriteAllText(AppConfig.UserConfigPath + ".dbg", "MainWindow ctor at " + DateTime.Now + "\n"); } catch { }
         InitializeComponent();
         DialogList.ItemsSource = _rows;
         FeedList.ItemsSource = _feed;
-        Loaded += async (_, _) => await StartAsync();
+        Loaded += async (_, _) =>
+        {
+            InitTray();
+            await StartAsync();
+        };
+    }
+
+    private void InitTray()
+    {
+        if (!_cfg.Tray.Enabled) return;
+        try
+        {
+            _tray = new TrayHelper(this);
+            _tray.OpenRequested += () => Dispatcher.Invoke(() =>
+            {
+                Show();
+                WindowState = WindowState.Normal;
+                Activate();
+            });
+            _tray.ExitRequested += () => Dispatcher.Invoke(() =>
+            {
+                _isQuitting = true;
+                Close();
+            });
+            _tray.Init();
+        }
+        catch { /* ignore */ }
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Minimized && _cfg.Tray.Enabled)
+        {
+            Hide();
+        }
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (!_isQuitting && _cfg.Tray.Enabled)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+        try { _tray?.Dispose(); } catch { }
+        base.OnClosing(e);
+    }
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "TG";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            var first = char.ToUpperInvariant(parts[0][0]);
+            var second = char.ToUpperInvariant(parts[1][0]);
+            return $"{first}{second}";
+        }
+        var clean = name.Trim();
+        return clean.Length >= 2 ? clean[..2].ToUpperInvariant() : clean.ToUpperInvariant();
+    }
+
+    private static string GetAvatarColor(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return AvatarColors[0];
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(name));
+        var idx = (BitConverter.ToInt32(hash, 0) & 0x7FFFFFFF) % AvatarColors.Length;
+        return AvatarColors[idx];
     }
 
     private void Status(string s) => Dispatcher.Invoke(() => StatusLabel.Text = s);
@@ -106,9 +207,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Запасной путь входа: QR через официальное приложение. Код из SMS/чата не нужен.
-    /// </summary>
     private async Task<bool> QrLoginAsync(WTelegramBridge bridge)
     {
         var qr = new QrWindow { Owner = this };
@@ -138,7 +236,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Мост просит код/пароль — показываем диалог в UI-потоке.</summary>
     private string? AskPrompt(string what)
         => Dispatcher.Invoke(() =>
         {
@@ -154,10 +251,15 @@ public partial class MainWindow : Window
             if (d is not null)
             {
                 _all.Remove(d);
-                _all.Insert(0, d with { LastMessage = m.Text, Unread = d.Unread + 1, Date = m.Date });
+                var unread = _peer == m.ChatId ? 0 : d.Unread + 1;
+                _all.Insert(0, d with { LastMessage = m.Text, Unread = unread, Date = m.Date });
                 PaintDialogs();
             }
-            if (_peer == m.ChatId) _ = LoadHistoryAsync();
+            if (_peer == m.ChatId)
+            {
+                _ = LoadHistoryAsync();
+                if (_bridge is not null) _ = _bridge.MarkReadAsync(_peer);
+            }
         });
     }
 
@@ -173,9 +275,12 @@ public partial class MainWindow : Window
     private void BuildFolderButtons()
     {
         FolderBar.Children.Clear();
-        AddFolderButton("all", "All");
+        AddFolderButton("all", "Все");
         foreach (var f in _folders)
             AddFolderButton($"tg:{f.Id}", string.IsNullOrWhiteSpace(f.Title) ? $"#{f.Id}" : f.Title);
+        var archivedCount = _all.Count(d => d.Archived);
+        if (archivedCount > 0)
+            AddFolderButton("archive", $"Архив ({archivedCount})");
     }
 
     private void AddFolderButton(string key, string title)
@@ -201,7 +306,7 @@ public partial class MainWindow : Window
 
     private ChatFolder? CurrentFolder()
     {
-        if (_folder == "all") return null;
+        if (_folder == "all" || _folder == "archive") return null;
         if (!int.TryParse(_folder.AsSpan(3), out var id)) return null;
         return _folders.FirstOrDefault(f => f.Id == id);
     }
@@ -220,8 +325,29 @@ public partial class MainWindow : Window
         foreach (var d in _all)
         {
             if (q.Length > 0 && !d.Name.ToLowerInvariant().Contains(q)) continue;
-            if (!FolderMatcher.Match(d.Id, KindStr(d.Kind), d.Unread, d.Muted, d.Archived, flt)) continue;
-            _rows.Add(new DialogRow { Id = d.Id, Name = d.Name, Preview = d.LastMessage, Unread = d.Unread });
+            if (_folder == "archive")
+            {
+                if (!d.Archived) continue;
+            }
+            else if (_folder == "all")
+            {
+                if (d.Archived) continue;
+            }
+            else
+            {
+                if (!FolderMatcher.Match(d.Id, KindStr(d.Kind), d.Unread, d.Muted, d.Archived, flt)) continue;
+            }
+
+            _rows.Add(new DialogRow
+            {
+                Id = d.Id,
+                Name = d.Name,
+                Initials = GetInitials(d.Name),
+                AvatarColor = GetAvatarColor(d.Name),
+                Preview = d.LastMessage,
+                Unread = d.Unread,
+                IsPinned = d.IsPinned
+            });
             if (_rows.Count >= 60) break;
         }
     }
@@ -237,6 +363,16 @@ public partial class MainWindow : Window
         ChatSub.Text = "";
         _replyTo = 0;
         ReplyBar.Visibility = Visibility.Collapsed;
+
+        var d = _all.FirstOrDefault(x => x.Id == _peer);
+        if (d is not null && d.Unread > 0)
+        {
+            var idx = _all.IndexOf(d);
+            _all[idx] = d with { Unread = 0 };
+            r.Unread = 0;
+            PaintDialogs();
+        }
+
         await LoadHistoryAsync();
         if (_bridge is not null) await _bridge.MarkReadAsync(_peer);
     }
@@ -246,9 +382,9 @@ public partial class MainWindow : Window
         if (_bridge is null || _peer == 0) return;
         try
         {
-            var msgs = await _bridge.GetHistoryAsync(_peer, 20);
+            var msgs = await _bridge.GetHistoryAsync(_peer, 30);
             PaintFeed(msgs);
-            ChatSub.Text = $"{msgs.Count} msgs";
+            ChatSub.Text = $"{msgs.Count} сообщений";
         }
         catch (Exception e) { Status($"history err: {e.Message}"); }
     }
@@ -258,7 +394,36 @@ public partial class MainWindow : Window
         _byId = msgs.GroupBy(m => m.Id).ToDictionary(g => g.Key, g => g.Last());
         _feed.Clear();
         foreach (var m in msgs)
-            _feed.Add(ToRow(m));
+        {
+            var row = ToRow(m);
+            _feed.Add(row);
+
+            if (m.Kind is MediaKind.Photo or MediaKind.Sticker or MediaKind.Gif or MediaKind.RoundVideo or MediaKind.Video)
+            {
+                var cachedThumb = MediaCache.ThumbPath(m.ChatId, m.Id);
+                if (File.Exists(cachedThumb))
+                {
+                    row.ImagePath = cachedThumb;
+                }
+                else
+                {
+                    var peerId = _peer;
+                    var msgId = m.Id;
+                    _ = Task.Run(async () =>
+                    {
+                        if (_bridge is null) return;
+                        var path = await _bridge.EnsureThumbAsync(peerId, msgId);
+                        if (!string.IsNullOrEmpty(path))
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                if (row.Id == msgId) row.ImagePath = path;
+                            });
+                        }
+                    });
+                }
+            }
+        }
         if (_feed.Count > 0) FeedList.ScrollIntoView(_feed[^1]);
     }
 
@@ -266,13 +431,14 @@ public partial class MainWindow : Window
     {
         var hint = m.Kind switch
         {
-            MediaKind.Photo => "🖼 photo — click to load",
-            MediaKind.Video => "🎬 video — click to load",
-            MediaKind.Gif => "🎞 GIF — click to load",
-            MediaKind.Sticker => "✨ sticker — click to load",
-            MediaKind.Voice => "🎤 voice — click to play",
-            MediaKind.Audio => "🎵 audio — click to play",
-            MediaKind.File => $"📄 {m.MediaLabel} — click to save",
+            MediaKind.Photo => "🖼 Фото (клик чтобы открыть)",
+            MediaKind.Video => "🎬 Видео (клик чтобы открыть)",
+            MediaKind.RoundVideo => "⭕ Кружочек (клик чтобы открыть)",
+            MediaKind.Gif => "🎞 GIF (клик чтобы открыть)",
+            MediaKind.Sticker => $"✨ Стикер {m.MediaLabel}",
+            MediaKind.Voice => $"🎤 Голосовое {m.MediaLabel} (клик чтобы слушать)",
+            MediaKind.Audio => $"🎵 Аудио {m.MediaLabel} (клик чтобы слушать)",
+            MediaKind.File => $"📄 {m.MediaLabel} — скачать",
             _ => ""
         };
         var text = m.Kind == MediaKind.Text ? m.Text : (m.Text.Length > 0 && !m.Text.StartsWith('[') ? m.Text : "");
@@ -282,12 +448,19 @@ public partial class MainWindow : Window
             Text = text,
             Author = m.Out ? "" : m.Author,
             AuthorColor = AuthorColors[(m.Author.GetHashCode() & 0x7FFFFFFF) % AuthorColors.Length],
-            Quote = m.ReplyTo > 0 ? $"↩ reply to #{m.ReplyTo} (click to jump)" : "",
+            Quote = m.ReplyTo > 0 ? $"↩ Ответ на #{m.ReplyTo} (клик для перехода)" : "",
             MediaHint = hint,
             Bubble = m.Out ? "#1C3A5E" : "#1A2230",
             Align = m.Out ? "Right" : "Left",
             Time = m.Date?.ToLocalTime().ToString("HH:mm") ?? ""
         };
+    }
+
+    private void Image_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not int id) return;
+        var thumb = MediaCache.ThumbPath(_peer, id);
+        if (File.Exists(thumb)) OpenExternal(thumb);
     }
 
     private async void Media_Click(object sender, MouseButtonEventArgs e)
@@ -309,22 +482,52 @@ public partial class MainWindow : Window
             case MediaKind.Audio:
                 Status("Скачиваю аудио...");
                 var ap = Path.Combine(Path.GetTempPath(), $"tgmini_{id}.ogg");
-                var got = await _bridge.DownloadToAsync(_peer, id, ap);
-                if (got.Length > 0) OpenExternal(got);
+                var gotAudio = await _bridge.DownloadToAsync(_peer, id, ap);
+                if (gotAudio.Length > 0) OpenExternal(gotAudio);
+                Status("");
+                break;
+            case MediaKind.RoundVideo:
+            case MediaKind.Video:
+                Status("Скачиваю видео...");
+                var vp = Path.Combine(Path.GetTempPath(), $"tgmini_{id}.mp4");
+                var gotVideo = await _bridge.DownloadToAsync(_peer, id, vp);
+                if (gotVideo.Length > 0) OpenExternal(gotVideo);
                 Status("");
                 break;
             default:
                 Status("Загружаю превью...");
                 var thumb = await _bridge.EnsureThumbAsync(_peer, id);
-                Status(thumb.Length > 0 ? $"Превью: {thumb}" : "Превью не получено");
+                if (thumb.Length > 0)
+                {
+                    Status("Превью готово");
+                    OpenExternal(thumb);
+                }
+                else Status("Превью не получено");
                 break;
         }
     }
 
     private static void OpenExternal(string path)
     {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }); }
-        catch { /* ignore */ }
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("cmd", $"/c start \"\" \"{path}\"") { CreateNoWindow = true, UseShellExecute = false });
+            }
+            catch
+            {
+                try
+                {
+                    Process.Start("explorer.exe", $"/select,\"{path}\"");
+                }
+                catch { /* ignore */ }
+            }
+        }
     }
 
     private async void Quote_Click(object sender, MouseButtonEventArgs e)
@@ -342,7 +545,7 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement fe || fe.Tag is not int id) return;
         if (!_byId.TryGetValue(id, out var m)) return;
         _replyTo = id;
-        var who = m.Out ? "you" : (m.Author.Length > 0 ? m.Author : _peerName);
+        var who = m.Out ? "вы" : (m.Author.Length > 0 ? m.Author : _peerName);
         var prev = m.Text.Length > 0 ? m.Text : m.MediaLabel;
         ReplyLabel.Text = $"↩ {who}: {prev[..Math.Min(70, prev.Length)]}";
         ReplyBar.Visibility = Visibility.Visible;
@@ -365,8 +568,16 @@ public partial class MainWindow : Window
         _replyTo = 0;
         ReplyBar.Visibility = Visibility.Collapsed;
         var ok = await _bridge.SendAsync(_peer, text, rt);
-        Status(ok ? "" : "Не удалось отправить");
-        if (ok) await LoadHistoryAsync();
+        if (!ok)
+        {
+            InputBox.Text = text;
+            Status("Не удалось отправить сообщение (проверьте права в чате)");
+        }
+        else
+        {
+            Status("");
+            await LoadHistoryAsync();
+        }
     }
 
     private async void Attach_Click(object sender, RoutedEventArgs e)
@@ -382,7 +593,7 @@ public partial class MainWindow : Window
             var prog = new Progress<(long Sent, long Total)>(x =>
                 Status($"Загрузка {Path.GetFileName(p)}: {(x.Total > 0 ? x.Sent * 100 / x.Total : 0)}%"));
             var ok = await _bridge.SendFileAsync(_peer, p, replyTo: rt, progress: prog);
-            Status(ok ? "" : $"Не удалось отправить {Path.GetFileName(p)}");
+            if (!ok) Status($"Не удалось отправить {Path.GetFileName(p)}");
         }
         await LoadHistoryAsync();
     }
@@ -396,4 +607,3 @@ public partial class MainWindow : Window
         }
     }
 }
-

@@ -2,7 +2,7 @@
 namespace TgMini.Core.Models;
 
 /// <summary>Тип медиа вложения. Ср. Bridge._describe_media в tg.py.</summary>
-public enum MediaKind { Text, Photo, Sticker, Gif, Video, Voice, Audio, File }
+public enum MediaKind { Text, Photo, Sticker, Gif, Video, Voice, Audio, File, RoundVideo }
 
 /// <summary>Тип чата. Ср. kind в tg.py (user/bot/group/channel).</summary>
 public enum ChatKind { User, Bot, Group, Channel, Other }
@@ -17,7 +17,8 @@ public sealed record DialogInfo(
     bool IsGroup,
     ChatKind Kind,
     bool Muted,
-    bool Archived);
+    bool Archived,
+    bool IsPinned = false);
 
 /// <summary>Одно сообщение ленты. Ср. dict из Bridge.get_history() / info из _handle().</summary>
 public sealed record MessageInfo(

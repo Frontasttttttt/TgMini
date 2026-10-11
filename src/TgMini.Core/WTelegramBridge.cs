@@ -37,10 +37,12 @@ public sealed class WTelegramBridge : IBridge
     }
 
     /// <summary>
-    /// True, если авторизация УЖЕ УДАЛАСЬ раньше: файл сессии сам по себе может быть
-    /// созданным скелетом (даже без логина), поэтому тут отдельный маркер *.auth.
+    /// True, если авторизация УЖЕ УДАЛАСЬ раньше: файл сессии существует, не пуст,
+    /// и есть отдельный маркер *.auth.
     /// </summary>
-    public bool HasSession => File.Exists(_sessionPath + ".auth");
+    public bool HasSession => File.Exists(_sessionPath) &&
+                              new FileInfo(_sessionPath).Length > 0 &&
+                              File.Exists(_sessionPath + ".auth");
 
     private void MarkAuthed()
     {
@@ -168,6 +170,7 @@ public sealed class WTelegramBridge : IBridge
         {
             if (dbase is not Dialog dlg) continue;
             var key = Key(dlg.peer);
+            var isPinned = (dlg.flags & Dialog.Flags.pinned) != 0;
             var name = _names.GetValueOrDefault(key) ?? (key == _me ? "Saved Messages" : $"chat{key}");
             var last = "";
             DateTime? date = null;
@@ -181,10 +184,14 @@ public sealed class WTelegramBridge : IBridge
             var muted = dlg.notify_settings?.mute_until is { } mu && (mu > DateTime.Now || mu > DateTime.UtcNow);
             out_.Add(new DialogInfo(key, name, last[..Math.Min(90, last.Length)],
                 date, dlg.unread_count, kind is ChatKind.Group or ChatKind.Channel,
-                kind, muted, dlg.folder_id == 1));
+                kind, muted, dlg.folder_id == 1, isPinned));
             if (out_.Count >= limit) break;
         }
-        out_.Sort((a, b) => (b.Date ?? DateTime.MinValue).CompareTo(a.Date ?? DateTime.MinValue));
+        out_.Sort((a, b) =>
+        {
+            if (a.IsPinned != b.IsPinned) return b.IsPinned ? 1 : -1;
+            return (b.Date ?? DateTime.MinValue).CompareTo(a.Date ?? DateTime.MinValue);
+        });
         return out_;
     }
 
@@ -312,13 +319,19 @@ public sealed class WTelegramBridge : IBridge
             m.date, authorKey, author, replyTo, kind, label, "");
     }
 
-    private bool IsOut(Message m) => m.from_id is PeerUser pu && pu.user_id == _me;
+    private bool IsOut(Message m) => (m.flags & TL.Message.Flags.out_) != 0 || (m.from_id is PeerUser pu && pu.user_id == _me);
 
     private static string MediaLabel(MediaKind k, string lbl) => k switch
     {
-        MediaKind.Photo => "[photo]", MediaKind.Video => "[video]", MediaKind.Gif => "[GIF]",
-        MediaKind.Sticker => $"[{lbl}]", MediaKind.Voice => "[voice]", MediaKind.Audio => "[audio]",
-        MediaKind.File => $"[{lbl}]", _ => "[media]"
+        MediaKind.Photo => "[photo]",
+        MediaKind.Video => "[video]",
+        MediaKind.RoundVideo => "[кружочек]",
+        MediaKind.Gif => "[GIF]",
+        MediaKind.Sticker => $"[{lbl}]",
+        MediaKind.Voice => $"[voice {lbl}]",
+        MediaKind.Audio => "[audio]",
+        MediaKind.File => $"[{lbl}]",
+        _ => "[media]"
     };
 
     private static (MediaKind, string) DescribeMedia(Message m)
@@ -334,10 +347,17 @@ public sealed class WTelegramBridge : IBridge
                     return (MediaKind.Sticker, attrs.OfType<DocumentAttributeSticker>().First().alt ?? "sticker");
                 if (attrs.Any(a => a is DocumentAttributeAnimated))
                     return (MediaKind.Gif, "GIF");
+                if (attrs.OfType<DocumentAttributeVideo>().Any(v => (v.flags & DocumentAttributeVideo.Flags.round_message) != 0))
+                    return (MediaKind.RoundVideo, "кружочек");
                 if (attrs.Any(a => a is DocumentAttributeVideo))
                     return (MediaKind.Video, fn.Length > 0 ? fn : "video");
+                if (attrs.OfType<DocumentAttributeAudio>().Any(a => (a.flags & DocumentAttributeAudio.Flags.voice) != 0))
+                {
+                    var dur = attrs.OfType<DocumentAttributeAudio>().First().duration;
+                    return (MediaKind.Voice, dur > 0 ? $"{dur / 60}:{dur % 60:D2}" : "voice");
+                }
                 if (attrs.Any(a => a is DocumentAttributeAudio))
-                    return (MediaKind.Voice, fn.Length > 0 ? fn : "voice");
+                    return (MediaKind.Audio, fn.Length > 0 ? fn : "audio");
                 if (fn.Length > 0) return (MediaKind.File, fn);
                 var mime = doc.mime_type ?? "";
                 if (mime.StartsWith("audio/")) return (MediaKind.Audio, "");
