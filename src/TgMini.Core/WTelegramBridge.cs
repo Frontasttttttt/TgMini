@@ -454,6 +454,7 @@ public sealed class WTelegramBridge : IBridge
 
     public async Task<string?> EnsureAvatarAsync(long peerId, CancellationToken ct = default)
     {
+        if (peerId == _me) return null; // Избранное остаётся со специальной иконкой ⭐
         var cacheDir = Path.Combine(MediaCache.Dir, "avatars");
         try { Directory.CreateDirectory(cacheDir); } catch { }
         var path = Path.Combine(cacheDir, $"{peerId}.jpg");

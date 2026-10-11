@@ -422,19 +422,22 @@ public partial class MainWindow : Window
             };
             _rows.Add(row);
 
-            var peerId = d.Id;
-            _ = Task.Run(async () =>
+            if (d.Name is not ("Избранное" or "Saved Messages"))
             {
-                if (_bridge is null) return;
-                var path = await _bridge.EnsureAvatarAsync(peerId);
-                if (!string.IsNullOrEmpty(path))
+                var peerId = d.Id;
+                _ = Task.Run(async () =>
                 {
-                    Dispatcher.Invoke(() =>
+                    if (_bridge is null) return;
+                    var path = await _bridge.EnsureAvatarAsync(peerId);
+                    if (!string.IsNullOrEmpty(path))
                     {
-                        if (row.Id == peerId) row.AvatarPath = path;
-                    });
-                }
-            });
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (row.Id == peerId) row.AvatarPath = path;
+                        });
+                    }
+                });
+            }
             if (_rows.Count >= 60) break;
         }
     }
@@ -469,7 +472,7 @@ public partial class MainWindow : Window
         if (_bridge is null || _peer == 0) return;
         try
         {
-            var msgs = await _bridge.GetHistoryAsync(_peer, 30);
+            var msgs = await _bridge.GetHistoryAsync(_peer, 100);
             PaintFeed(msgs);
             ChatSub.Text = $"{msgs.Count} сообщений";
         }
