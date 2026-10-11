@@ -19,6 +19,19 @@ public sealed class TrayHelper : IDisposable
     private const int NIF_ICON = 0x00000002;
     private const int NIF_TIP = 0x00000004;
 
+    private const uint MF_STRING = 0x00000000;
+    private const uint MF_SEPARATOR = 0x00000800;
+    private const uint TPM_RETURNCMD = 0x0100;
+    private const uint TPM_RIGHTBUTTON = 0x0002;
+    private const uint WM_NULL = 0x0000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NOTIFYICONDATA
     {
@@ -47,6 +60,27 @@ public sealed class TrayHelper : IDisposable
 
     [DllImport("user32.dll")]
     private static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CreatePopupMenu();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool AppendMenu(IntPtr hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyMenu(IntPtr hMenu);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern uint TrackPopupMenuEx(IntPtr hmenu, uint fuFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
+
+    [DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     private static readonly IntPtr IDI_APPLICATION = new IntPtr(32512);
 
@@ -106,17 +140,26 @@ public sealed class TrayHelper : IDisposable
 
     private void ShowContextMenu()
     {
-        var menu = new System.Windows.Controls.ContextMenu();
-        var openItem = new System.Windows.Controls.MenuItem { Header = "Открыть TG Mini" };
-        openItem.Click += (_, _) => OpenRequested?.Invoke();
-        var exitItem = new System.Windows.Controls.MenuItem { Header = "Выход" };
-        exitItem.Click += (_, _) => ExitRequested?.Invoke();
+        var hMenu = CreatePopupMenu();
+        AppendMenu(hMenu, MF_STRING, 1001, "Открыть TG Mini");
+        AppendMenu(hMenu, MF_SEPARATOR, 0, string.Empty);
+        AppendMenu(hMenu, MF_STRING, 1002, "Выход");
 
-        menu.Items.Add(openItem);
-        menu.Items.Add(new System.Windows.Controls.Separator());
-        menu.Items.Add(exitItem);
+        GetCursorPos(out var pt);
+        SetForegroundWindow(_hwnd);
 
-        menu.IsOpen = true;
+        var cmd = TrackPopupMenuEx(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, _hwnd, IntPtr.Zero);
+        PostMessage(_hwnd, WM_NULL, IntPtr.Zero, IntPtr.Zero);
+        DestroyMenu(hMenu);
+
+        if (cmd == 1001)
+        {
+            OpenRequested?.Invoke();
+        }
+        else if (cmd == 1002)
+        {
+            ExitRequested?.Invoke();
+        }
     }
 
     public void Dispose()

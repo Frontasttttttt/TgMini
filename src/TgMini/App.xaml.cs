@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -10,21 +10,57 @@ public partial class App : Application
         Path.Combine(AppContext.BaseDirectory, "crash.log");
     private static readonly string WtLogPath =
         Path.Combine(AppContext.BaseDirectory, "wt.log");
-    private Mutex? _instanceMutex;
+    private static EventWaitHandle? _wakeUpEvent;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        // Один экземпляр: второй запуск не должен драться за session-файл
-        // (IO_SharingViolation_File) — просим закрыть и выходим.
-        _instanceMutex = new Mutex(true, @"Local\TgMini.SingleInstance", out var firstInstance);
-        if (!firstInstance)
+
+        bool createdNew;
+        try
         {
-            MessageBox.Show(
-                "TgMini уже запущен.\nЕсли окна не видно — проверьте панель задач.",
-                "TgMini", MessageBoxButton.OK, MessageBoxImage.Information);
-            Shutdown();
+            _wakeUpEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\TgMini.WakeUp", out createdNew);
         }
+        catch
+        {
+            createdNew = true;
+        }
+
+        if (!createdNew)
+        {
+            // Второй запуск: будим уже открытый экземпляр и тихо выходим
+            try { _wakeUpEvent?.Set(); } catch { /* ignore */ }
+            Shutdown();
+            return;
+        }
+
+        // Фоновый поток ожидает повторных запусков и разворачивает окно
+        var wakeThread = new Thread(() =>
+        {
+            while (true)
+            {
+                try
+                {
+                    _wakeUpEvent?.WaitOne();
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (MainWindow is { } w)
+                        {
+                            w.Show();
+                            if (w.WindowState == WindowState.Minimized)
+                                w.WindowState = WindowState.Normal;
+                            w.Activate();
+                            w.Focus();
+                        }
+                    });
+                }
+                catch { break; }
+            }
+        })
+        {
+            IsBackground = true
+        };
+        wakeThread.Start();
     }
 
     public App()

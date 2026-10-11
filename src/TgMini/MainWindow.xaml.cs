@@ -114,7 +114,9 @@ public partial class MainWindow : Window
             _tray.ExitRequested += () => Dispatcher.Invoke(() =>
             {
                 _isQuitting = true;
-                Close();
+                try { _tray?.Dispose(); } catch { }
+                try { Application.Current.Shutdown(); } catch { }
+                Environment.Exit(0);
             });
             _tray.Init();
         }
@@ -140,6 +142,8 @@ public partial class MainWindow : Window
         }
         try { _tray?.Dispose(); } catch { }
         base.OnClosing(e);
+        try { Application.Current.Shutdown(); } catch { }
+        Environment.Exit(0);
     }
 
     private static string GetInitials(string name)
