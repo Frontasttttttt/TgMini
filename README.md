@@ -1,39 +1,40 @@
-# TgMini — portable mini-Telegram (C# .NET 9)
+# TgMini [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4)](https://dotnet.microsoft.com/) [![C#](https://img.shields.io/badge/C%23-13.0-239120)](https://docs.microsoft.com/dotnet/csharp/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Portable desktop Telegram client: `TgMini.exe` + setup driver that fills
-API ID / API Hash / phone on first run and saves `config.toml`.
-No hardcoded accounts — every user enters their own credentials.
+Портативный мини-клиент Telegram для Windows с мгновенным входом по QR-коду и оптимизацией для работы в фоне.
 
-> Full build + binaries live in the local `deliverable/` folder (not in git).
-> See `DELIVERABLE-NOTES.txt` for the original Russian manual.
+## Возможности
+- Вход исключительно по QR-коду без ручного ввода телефона и создания приложений на my.telegram.org.
+- Синхронизация папок чатов Telegram (Все, Личные, Учеба, Непрочитанные) с быстрым переключением.
+- Чаты с пузырьками сообщений, цветными именами авторов и цитированием ответов.
+- Загрузка медиафайлов (фото, гиф, видео, голосовые, документы) через диалог сохранения.
+- Логирование пропущенных сообщений в локальную базу данных SQLite.
+- Тихий режим для игр, DND и системный трей с автозапуском.
+- Глобальные горячие клавиши Win+H, Win+J и Win+M для быстрого управления.
+- Портативная архитектура без установщика.
 
-## Features
-- Portable `TgMini.exe` (no installer)
-- `TgMiniSetupDriver` — first-run wizard (API ID / Hash / phone)
-- `TgMini.Core` — shared logic
-- `tests/TgMini.Smoke` + `tools/BridgeTest`, `tools/Doc`
+## Вход по QR
+1. Запустите приложение — окно QR откроется сразу.
+2. Откройте официальный клиент Telegram: **Настройки** → **Устройства** → **Подключить устройство**.
+3. Отсканируйте QR-код с экрана монитора камерой телефона.
 
-## Stack
-![C#](https://img.shields.io/badge/C%23-239120?style=flat&logo=csharp&logoColor=white)
-`.NET 9` · `WPF/Win32` · `SQLite`
-
-## Quickstart
-```powershell
-dotnet build TgMini.sln -c Release
-dotnet test tests/TgMini.Smoke/TgMini.Smoke.csproj
+## Сборка
+```bash
+dotnet restore TgMini.sln
+dotnet build TgMini.sln --configuration Release
+dotnet publish src/TgMini/TgMini.csproj -c Release -o dist
 ```
 
-Requires [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
-(`dotnet --list-runtimes` should show `Microsoft.WindowsDesktop.App 9.x`).
+Требуется [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
 
-## Layout
-| Path | What |
-|---|---|
-| `src/TgMini` | App |
-| `src/TgMini.Core` | Shared core |
-| `src/TgMiniSetupDriver` | First-run driver |
-| `tests/TgMini.Smoke` | Smoke tests |
-| `tools/` | BridgeTest, Doc |
+## Структура проекта
+| Path | Что внутри |
+| :--- | :--- |
+| `src/TgMini` | WPF-приложение (MainWindow, SetupWindow, QrWindow, VerificationWindow) |
+| `src/TgMini.Core` | Ядро: WTelegramBridge, AppConfig, FolderMatcher, MediaCache, SQLite |
+| `tests/TgMini.Smoke` | Смоук-тесты (SMOKE_OK) |
+| `tools/TgMini.BridgeTest` | Тестирование Telegram API-моста |
+| `tools/TgMini.Doc` | Документация и вспомогательные скрипты |
+| `TgMini.sln` | Главный файл решения |
 
-## License
-MIT
+## Лицензия
+Распространяется под условиями лицензии [MIT](LICENSE).
