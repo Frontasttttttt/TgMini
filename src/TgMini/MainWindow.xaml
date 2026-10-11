@@ -74,6 +74,17 @@
         <DataTemplate x:Key="MsgRowTpl">
             <Border Background="{Binding Bubble}" CornerRadius="10" Padding="10,7" Margin="4,2"
                     HorizontalAlignment="{Binding Align}">
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="↩ Ответить" Click="MsgMenuReply_Click"/>
+                        <MenuItem Header="✏️ Редактировать" Visibility="{Binding CanEdit}" Click="MsgMenuEdit_Click"/>
+                        <MenuItem Header="💾 Сохранить как..." Visibility="{Binding MediaActionsVisible}" Click="MsgMenuSaveAs_Click"/>
+                        <MenuItem Header="📂 Показать в папке" Visibility="{Binding MediaActionsVisible}" Click="MsgMenuShowInFolder_Click"/>
+                        <MenuItem Header="📋 Скопировать текст" Click="MsgMenuCopy_Click"/>
+                        <Separator/>
+                        <MenuItem Header="🗑️ Удалить" Foreground="#FF5C7A" Click="MsgMenuDelete_Click"/>
+                    </ContextMenu>
+                </Border.ContextMenu>
                 <StackPanel MaxWidth="{Binding WrapWidth}">
                     <TextBlock Text="{Binding Author}" FontSize="11" FontWeight="Bold"
                                Foreground="{Binding AuthorColor}" Visibility="{Binding AuthorVisible}"/>
@@ -137,14 +148,23 @@
                 <TextBlock x:Name="ChatSub" Text="" FontSize="11"
                            Foreground="#8B949E" Margin="0,0,0,8"/>
             </StackPanel>
-            <ListBox x:Name="FeedList" Grid.Row="1" Background="#0B0E13"
-                     Foreground="#E8ECF1" BorderThickness="0" Margin="0,0,0,10"
-                     VirtualizingStackPanel.IsVirtualizing="True"
-                     VirtualizingStackPanel.VirtualizationMode="Recycling"
-                     VirtualizingPanel.ScrollUnit="Pixel"
-                     ScrollViewer.CanContentScroll="False"
-                     ItemTemplate="{StaticResource MsgRowTpl}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+            <Grid Grid.Row="1" Margin="0,0,0,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Button x:Name="LoadMoreBtn" Grid.Row="0" Content="⬆ Загрузить более ранние сообщения"
+                        Style="{StaticResource GhostBtn}" Foreground="#2EA6FF" Margin="0,0,0,6"
+                        Visibility="Collapsed" Click="LoadMore_Click"/>
+                <ListBox x:Name="FeedList" Grid.Row="1" Background="#0B0E13"
+                         Foreground="#E8ECF1" BorderThickness="0"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         VirtualizingStackPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel"
+                         ScrollViewer.CanContentScroll="False"
+                         ItemTemplate="{StaticResource MsgRowTpl}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+            </Grid>
             <StackPanel x:Name="ReplyBar" Grid.Row="2" Orientation="Horizontal"
                         Background="#1A2230" Margin="0,0,0,6" Visibility="Collapsed">
                 <TextBlock x:Name="ReplyLabel" Foreground="#8B949E" FontStyle="Italic"

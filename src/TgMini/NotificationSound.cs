@@ -1,42 +1,51 @@
 using System.IO;
-using System.Media;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace TgMini;
 
 /// <summary>
-/// Проигрывание чистого, приятного системного звука сообщений Windows 10/11
-/// (Windows Notify Messaging.wav / Windows Message Nudge.wav).
+/// Проигрывание прикреплённого пользователем звука iPhone (din-iphone.mp3).
+/// Встроен как EmbeddedResource прямо в сборку.
 /// </summary>
 public static class NotificationSound
 {
-    private static readonly string[] SoundCandidates =
-    {
-        @"C:\Windows\Media\Windows Notify Messaging.wav",
-        @"C:\Windows\Media\Windows Message Nudge.wav",
-        @"C:\Windows\Media\Windows Notify.wav",
-        @"C:\Windows\Media\notify.wav",
-        @"C:\Windows\Media\ding.wav"
-    };
+    private static string? _soundPath;
+
+    [DllImport("winmm.dll", EntryPoint = "mciSendStringW", CharSet = CharSet.Unicode)]
+    private static extern int mciSendString(string command, StringBuilder? buffer, int bufferSize, IntPtr hwndCallback);
 
     public static void Play()
     {
         try
         {
-            foreach (var path in SoundCandidates)
+            if (_soundPath is null || !File.Exists(_soundPath))
             {
-                if (File.Exists(path))
+                var p = Path.Combine(Path.GetTempPath(), "tgmini_din_iphone.mp3");
+                var asm = Assembly.GetExecutingAssembly();
+                using var s = asm.GetManifestResourceStream("TgMini.din-iphone.mp3");
+                if (s is not null)
                 {
-                    using var player = new SoundPlayer(path);
-                    player.Play();
-                    return;
+                    using var fs = File.Create(p);
+                    s.CopyTo(fs);
+                    _soundPath = p;
                 }
             }
+
+            if (_soundPath is not null && File.Exists(_soundPath))
+            {
+                mciSendString("close notif_sound", null, 0, IntPtr.Zero);
+                mciSendString($"open \"{_soundPath}\" type mpegvideo alias notif_sound", null, 0, IntPtr.Zero);
+                mciSendString("play notif_sound from 0", null, 0, IntPtr.Zero);
+                return;
+            }
         }
-        catch { /* ignore */ }
+        catch { /* fallback */ }
 
         try
         {
-            SystemSounds.Asterisk.Play();
+            System.Media.SystemSounds.Asterisk.Play();
         }
         catch { /* ignore */ }
     }

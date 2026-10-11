@@ -266,12 +266,12 @@ public sealed class WTelegramBridge : IBridge
         }
     }
 
-    public async Task<IReadOnlyList<MessageInfo>> GetHistoryAsync(long peerId, int limit = 20, CancellationToken ct = default)
+    public async Task<IReadOnlyList<MessageInfo>> GetHistoryAsync(long peerId, int limit = 50, int offsetId = 0, CancellationToken ct = default)
     {
         if (_c is null) return Array.Empty<MessageInfo>();
         var peer = await ResolveAsync(peerId);
         if (peer is null) return Array.Empty<MessageInfo>();
-        var hist = await _c.Messages_GetHistory(peer, offset_id: 0, offset_date: default,
+        var hist = await _c.Messages_GetHistory(peer, offset_id: offsetId, offset_date: default,
             add_offset: 0, limit: limit, max_id: 0, min_id: 0, hash: 0);
         var (users, chats) = Entities(hist);
         AbsorbEntities(users, chats);
@@ -525,6 +525,40 @@ public sealed class WTelegramBridge : IBridge
         catch (Exception e)
         {
             Console.WriteLine($"ToggleChatFolder error: {e.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteMessagesAsync(long peerId, int[] msgIds, CancellationToken ct = default)
+    {
+        if (_c is null || msgIds == null || msgIds.Length == 0) return false;
+        try
+        {
+            var peer = await ResolveAsync(peerId);
+            if (peer is null) return false;
+            await _c.DeleteMessages(peer, msgIds);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"DeleteMessages error: {e.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> EditMessageAsync(long peerId, int msgId, string newText, CancellationToken ct = default)
+    {
+        if (_c is null) return false;
+        try
+        {
+            var peer = await ResolveAsync(peerId);
+            if (peer is null) return false;
+            await _c.Messages_EditMessage(peer, msgId, message: newText);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"EditMessage error: {e.Message}");
             return false;
         }
     }

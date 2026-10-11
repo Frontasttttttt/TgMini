@@ -62,6 +62,10 @@ public sealed class MsgRow : INotifyPropertyChanged
     public string Align { get; init; } = "Left";
     public double WrapWidth { get; init; } = 460;
     public string Time { get; init; } = "";
+    public bool Out { get; init; }
+    public string CanEdit => Out ? "Visible" : "Collapsed";
+    public bool HasMedia { get; init; }
+    public string MediaActionsVisible => HasMedia ? "Visible" : "Collapsed";
 
     private string _imagePath = "";
     public string ImagePath
@@ -102,6 +106,10 @@ public partial class MainWindow : Window
     private long _peer;
     private string _peerName = "";
     private int _replyTo;
+    private int _editMsgId = 0;
+    private int _oldestMsgId = 0;
+    private bool _hasMoreHistory = true;
+    private bool _isLoadingHistory = false;
 
     private TrayHelper? _tray;
     private bool _isQuitting;
@@ -463,6 +471,8 @@ public partial class MainWindow : Window
             PaintDialogs();
         }
 
+        _oldestMsgId = 0;
+        _hasMoreHistory = true;
         await LoadHistoryAsync();
         if (_bridge is not null) await _bridge.MarkReadAsync(_peer);
     }
@@ -472,11 +482,91 @@ public partial class MainWindow : Window
         if (_bridge is null || _peer == 0) return;
         try
         {
-            var msgs = await _bridge.GetHistoryAsync(_peer, 100);
+            var msgs = await _bridge.GetHistoryAsync(_peer, 60, offsetId: 0);
+            _hasMoreHistory = msgs.Count >= 60;
+            LoadMoreBtn.Visibility = _hasMoreHistory ? Visibility.Visible : Visibility.Collapsed;
+            if (msgs.Count > 0) _oldestMsgId = msgs[0].Id;
             PaintFeed(msgs);
             ChatSub.Text = $"{msgs.Count} сообщений";
         }
         catch (Exception e) { Status($"history err: {e.Message}"); }
+    }
+
+    private async void LoadMore_Click(object sender, RoutedEventArgs e)
+    {
+        if (_bridge is null || _peer == 0 || _isLoadingHistory || !_hasMoreHistory || _oldestMsgId == 0) return;
+        _isLoadingHistory = true;
+        LoadMoreBtn.IsEnabled = false;
+        LoadMoreBtn.Content = "⏳ Загрузка...";
+        try
+        {
+            var older = await _bridge.GetHistoryAsync(_peer, 60, offsetId: _oldestMsgId);
+            if (older.Count == 0)
+            {
+                _hasMoreHistory = false;
+                LoadMoreBtn.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                _oldestMsgId = older[0].Id;
+                _hasMoreHistory = older.Count >= 60;
+                LoadMoreBtn.Visibility = _hasMoreHistory ? Visibility.Visible : Visibility.Collapsed;
+
+                foreach (var m in older)
+                {
+                    _byId[m.Id] = m;
+                }
+
+                // Вставляем более старые сообщения в начало _feed
+                for (var i = older.Count - 1; i >= 0; i--)
+                {
+                    var m = older[i];
+                    var row = ToRow(m);
+                    _feed.Insert(0, row);
+                    EnsureMediaThumb(row, m);
+                }
+                ChatSub.Text = $"{_feed.Count} сообщений";
+            }
+        }
+        catch (Exception ex)
+        {
+            Status($"load more err: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingHistory = false;
+            LoadMoreBtn.IsEnabled = true;
+            LoadMoreBtn.Content = "⬆ Загрузить более ранние сообщения";
+        }
+    }
+
+    private void EnsureMediaThumb(MsgRow row, MessageInfo m)
+    {
+        if (m.Kind is MediaKind.Photo or MediaKind.Sticker or MediaKind.Gif or MediaKind.RoundVideo or MediaKind.Video)
+        {
+            var cachedThumb = MediaCache.ThumbPath(m.ChatId, m.Id);
+            if (File.Exists(cachedThumb))
+            {
+                row.ImagePath = cachedThumb;
+            }
+            else
+            {
+                var peerId = _peer;
+                var msgId = m.Id;
+                _ = Task.Run(async () =>
+                {
+                    if (_bridge is null) return;
+                    var path = await _bridge.EnsureThumbAsync(peerId, msgId);
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (row.Id == msgId) row.ImagePath = path;
+                        });
+                    }
+                });
+            }
+        }
     }
 
     private void PaintFeed(IReadOnlyList<MessageInfo> msgs)
@@ -487,32 +577,7 @@ public partial class MainWindow : Window
         {
             var row = ToRow(m);
             _feed.Add(row);
-
-            if (m.Kind is MediaKind.Photo or MediaKind.Sticker or MediaKind.Gif or MediaKind.RoundVideo or MediaKind.Video)
-            {
-                var cachedThumb = MediaCache.ThumbPath(m.ChatId, m.Id);
-                if (File.Exists(cachedThumb))
-                {
-                    row.ImagePath = cachedThumb;
-                }
-                else
-                {
-                    var peerId = _peer;
-                    var msgId = m.Id;
-                    _ = Task.Run(async () =>
-                    {
-                        if (_bridge is null) return;
-                        var path = await _bridge.EnsureThumbAsync(peerId, msgId);
-                        if (!string.IsNullOrEmpty(path))
-                        {
-                            Dispatcher.Invoke(() =>
-                            {
-                                if (row.Id == msgId) row.ImagePath = path;
-                            });
-                        }
-                    });
-                }
-            }
+            EnsureMediaThumb(row, m);
         }
         if (_feed.Count > 0) FeedList.ScrollIntoView(_feed[^1]);
     }
@@ -548,13 +613,31 @@ public partial class MainWindow : Window
             MediaHint = hint,
             Bubble = m.Out ? "#1C3A5E" : "#1A2230",
             Align = m.Out ? "Right" : "Left",
-            Time = m.Date?.ToLocalTime().ToString("HH:mm") ?? ""
+            Time = m.Date?.ToLocalTime().ToString("HH:mm") ?? "",
+            Out = m.Out,
+            HasMedia = m.Kind != MediaKind.Text
         };
     }
 
-    private void Image_Click(object sender, MouseButtonEventArgs e)
+    private async void Image_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe || fe.Tag is not int id) return;
+        if (_byId.TryGetValue(id, out var m) && m.Kind is MediaKind.RoundVideo or MediaKind.Video)
+        {
+            if (_bridge is null) return;
+            Status("Скачиваю видео...");
+            var vp = Path.Combine(Path.GetTempPath(), $"tgmini_{id}.mp4");
+            if (File.Exists(vp) && new FileInfo(vp).Length > 0)
+            {
+                OpenExternal(vp);
+                Status("");
+                return;
+            }
+            var gotVideo = await _bridge.DownloadToAsync(_peer, id, vp);
+            if (gotVideo.Length > 0) OpenExternal(gotVideo);
+            Status("");
+            return;
+        }
         var thumb = MediaCache.ThumbPath(_peer, id);
         if (File.Exists(thumb)) OpenExternal(thumb);
     }
@@ -651,6 +734,7 @@ public partial class MainWindow : Window
     private void ReplyClear_Click(object sender, RoutedEventArgs e)
     {
         _replyTo = 0;
+        _editMsgId = 0;
         ReplyBar.Visibility = Visibility.Collapsed;
     }
 
@@ -660,6 +744,26 @@ public partial class MainWindow : Window
         var text = InputBox.Text.Trim();
         if (text.Length == 0) return;
         InputBox.Clear();
+
+        if (_editMsgId > 0)
+        {
+            var editId = _editMsgId;
+            _editMsgId = 0;
+            ReplyBar.Visibility = Visibility.Collapsed;
+            var editOk = await _bridge.EditMessageAsync(_peer, editId, text);
+            if (!editOk)
+            {
+                InputBox.Text = text;
+                Status("Не удалось отредактировать сообщение");
+            }
+            else
+            {
+                Status("");
+                await LoadHistoryAsync();
+            }
+            return;
+        }
+
         var rt = _replyTo;
         _replyTo = 0;
         ReplyBar.Visibility = Visibility.Collapsed;
@@ -683,6 +787,7 @@ public partial class MainWindow : Window
         if (ofd.ShowDialog() != true) return;
         var rt = _replyTo;
         _replyTo = 0;
+        _editMsgId = 0;
         ReplyBar.Visibility = Visibility.Collapsed;
         foreach (var p in ofd.FileNames)
         {
@@ -700,6 +805,139 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             Send_Click(sender, e);
+        }
+    }
+
+    private static MsgRow? GetMsgRowFromSender(object sender)
+    {
+        if (sender is FrameworkElement fe)
+        {
+            if (fe.DataContext is MsgRow r) return r;
+            if (fe.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement pt && pt.DataContext is MsgRow r2) return r2;
+        }
+        return null;
+    }
+
+    private void MsgMenuReply_Click(object sender, RoutedEventArgs e)
+    {
+        var row = GetMsgRowFromSender(sender);
+        if (row is null) return;
+        if (!_byId.TryGetValue(row.Id, out var m)) return;
+        _replyTo = row.Id;
+        _editMsgId = 0;
+        var who = m.Out ? "вы" : (m.Author.Length > 0 ? m.Author : _peerName);
+        var prev = m.Text.Length > 0 ? m.Text : m.MediaLabel;
+        ReplyLabel.Text = $"↩ {who}: {prev[..Math.Min(70, prev.Length)]}";
+        ReplyBar.Visibility = Visibility.Visible;
+        InputBox.Focus();
+    }
+
+    private void MsgMenuEdit_Click(object sender, RoutedEventArgs e)
+    {
+        var row = GetMsgRowFromSender(sender);
+        if (row is null) return;
+        if (!_byId.TryGetValue(row.Id, out var m) || !m.Out) return;
+        _editMsgId = row.Id;
+        _replyTo = 0;
+        ReplyLabel.Text = $"✏️ Редактирование #{row.Id}";
+        ReplyBar.Visibility = Visibility.Visible;
+        InputBox.Text = m.Text;
+        InputBox.Focus();
+        InputBox.SelectAll();
+    }
+
+    private async void MsgMenuSaveAs_Click(object sender, RoutedEventArgs e)
+    {
+        var row = GetMsgRowFromSender(sender);
+        if (row is null || _bridge is null) return;
+        if (!_byId.TryGetValue(row.Id, out var m)) return;
+
+        var defaultName = !string.IsNullOrEmpty(m.MediaLabel) ? m.MediaLabel : (m.Kind == MediaKind.RoundVideo || m.Kind == MediaKind.Video ? $"video_{row.Id}.mp4" : $"media_{row.Id}.bin");
+        var sfd = new SaveFileDialog { FileName = defaultName };
+        if (sfd.ShowDialog() != true) return;
+
+        Status("Сохраняю медиа...");
+        var prog = new Progress<(long Sent, long Total)>(p =>
+            Status($"Сохраняю... {(p.Total > 0 ? p.Sent * 100 / p.Total : 0)}%"));
+        var saved = await _bridge.DownloadToAsync(_peer, row.Id, sfd.FileName, prog);
+        Status(saved.Length > 0 ? $"Файл сохранён: {saved}" : "Не удалось сохранить");
+    }
+
+    private async void MsgMenuShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var row = GetMsgRowFromSender(sender);
+        if (row is null || _bridge is null) return;
+        if (!_byId.TryGetValue(row.Id, out var m)) return;
+
+        var cached = MediaCache.ThumbPath(_peer, row.Id);
+        var tempVid = Path.Combine(Path.GetTempPath(), $"tgmini_{row.Id}.mp4");
+        var tempAudio = Path.Combine(Path.GetTempPath(), $"tgmini_{row.Id}.ogg");
+        string targetPath = "";
+
+        if (File.Exists(tempVid)) targetPath = tempVid;
+        else if (File.Exists(tempAudio)) targetPath = tempAudio;
+        else if (File.Exists(cached)) targetPath = cached;
+        else
+        {
+            Status("Загружаю для показа...");
+            if (m.Kind is MediaKind.RoundVideo or MediaKind.Video)
+                targetPath = await _bridge.DownloadToAsync(_peer, row.Id, tempVid);
+            else if (m.Kind is MediaKind.Voice or MediaKind.Audio)
+                targetPath = await _bridge.DownloadToAsync(_peer, row.Id, tempAudio);
+            else
+                targetPath = await _bridge.EnsureThumbAsync(_peer, row.Id);
+            Status("");
+        }
+
+        if (!string.IsNullOrEmpty(targetPath) && File.Exists(targetPath))
+        {
+            try
+            {
+                Process.Start("explorer.exe", $"/select,\"{targetPath}\"");
+            }
+            catch { /* ignore */ }
+        }
+        else
+        {
+            Status("Файл ещё не загружен на диск");
+        }
+    }
+
+    private void MsgMenuCopy_Click(object sender, RoutedEventArgs e)
+    {
+        var row = GetMsgRowFromSender(sender);
+        if (row is null) return;
+        try
+        {
+            var text = !string.IsNullOrEmpty(row.Text) ? row.Text : row.MediaHint;
+            if (!string.IsNullOrEmpty(text))
+            {
+                Clipboard.SetText(text);
+                Status("Текст скопирован в буфер");
+            }
+        }
+        catch { /* ignore */ }
+    }
+
+    private async void MsgMenuDelete_Click(object sender, RoutedEventArgs e)
+    {
+        var row = GetMsgRowFromSender(sender);
+        if (row is null || _bridge is null) return;
+        var res = MessageBox.Show("Удалить это сообщение для всех?", "Удаление", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (res != MessageBoxResult.Yes) return;
+
+        Status("Удаляю сообщение...");
+        var ok = await _bridge.DeleteMessagesAsync(_peer, new[] { row.Id });
+        if (ok)
+        {
+            Status("Сообщение удалено");
+            _feed.Remove(row);
+            _byId.Remove(row.Id);
+            ChatSub.Text = $"{_feed.Count} сообщений";
+        }
+        else
+        {
+            Status("Не удалось удалить сообщение");
         }
     }
 
