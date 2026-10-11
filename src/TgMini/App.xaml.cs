@@ -18,6 +18,9 @@ public partial class App : Application
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
     private const int SW_RESTORE = 9;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -31,19 +34,33 @@ public partial class App : Application
                 .Where(p => p.Id != current.Id)
                 .ToList();
 
-            foreach (var other in others)
+            if (others.Count > 0)
             {
-                if (other.MainWindowHandle != IntPtr.Zero)
+                // Проверяем видимое главное окно
+                foreach (var other in others)
                 {
-                    // Уже есть запущенное окно: разворачиваем и выходим
-                    ShowWindow(other.MainWindowHandle, SW_RESTORE);
-                    SetForegroundWindow(other.MainWindowHandle);
+                    if (other.MainWindowHandle != IntPtr.Zero)
+                    {
+                        ShowWindow(other.MainWindowHandle, SW_RESTORE);
+                        SetForegroundWindow(other.MainWindowHandle);
+                        Shutdown();
+                        return;
+                    }
+                }
+
+                // Проверяем скрытое в трей окно по заголовку
+                var hWnd = FindWindow(null, "TG Mini");
+                if (hWnd != IntPtr.Zero)
+                {
+                    ShowWindow(hWnd, SW_RESTORE);
+                    SetForegroundWindow(hWnd);
                     Shutdown();
                     return;
                 }
-                else
+
+                // Если окон нет совсем (зомби-процесс) — завершаем
+                foreach (var other in others)
                 {
-                    // Зависший без окна процесс — убиваем
                     try { other.Kill(); } catch { }
                 }
             }

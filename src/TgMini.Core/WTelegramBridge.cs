@@ -44,6 +44,12 @@ public sealed class WTelegramBridge : IBridge
                               new FileInfo(_sessionPath).Length > 0 &&
                               File.Exists(_sessionPath + ".auth");
 
+    public void ResetSession()
+    {
+        try { File.Delete(_sessionPath + ".auth"); } catch { }
+        try { File.Delete(_sessionPath); } catch { }
+    }
+
     private void MarkAuthed()
     {
         try { File.WriteAllText(_sessionPath + ".auth", DateTime.Now.ToString("o")); }
@@ -60,12 +66,15 @@ public sealed class WTelegramBridge : IBridge
         // и возникают IO_SharingViolation_File / AUTH_KEY_UNREGISTERED.
         "session_pathname" => _sessionPath,
         "session_path_name" => _sessionPath,
-        "phone_number" => _cfg.Telegram.Phone,
+        // Если телефон пустой, ДОЛЖЕН возвращаться null! Иначе WTelegramClient
+        // сравнивает пустую строку с телефоном сессии, решает что номер не совпал,
+        // отправляет Auth_LogOut и аннулирует авторизацию на сервере Telegram!
+        "phone_number" => string.IsNullOrWhiteSpace(_cfg.Telegram.Phone) ? null : _cfg.Telegram.Phone.Trim(),
         "verification_code" => Prompt?.Invoke("verification_code"),
         "password" => Prompt?.Invoke("password"),
-        "first_name" => Prompt?.Invoke("first_name") ?? "TgMini",
-        "last_name" => Prompt?.Invoke("last_name") ?? "",
-        "email" => Prompt?.Invoke("email") ?? "",
+        "first_name" => Prompt?.Invoke("first_name"),
+        "last_name" => Prompt?.Invoke("last_name"),
+        "email" => Prompt?.Invoke("email"),
         _ => null
     };
 
@@ -152,6 +161,11 @@ public sealed class WTelegramBridge : IBridge
         var me = await c.LoginUserIfNeeded();
         _me = me.id;
         _meUsername = me.MainUsername ?? "";
+        if (!string.IsNullOrWhiteSpace(me.phone) && _cfg.Telegram.Phone != me.phone)
+        {
+            _cfg.Telegram.Phone = me.phone;
+            try { _cfg.Save(); } catch { }
+        }
         MarkAuthed();
         await LoadDialogsAsync(force: true);
         c.OnUpdates += HandleUpdates;
@@ -696,6 +710,11 @@ public sealed class WTelegramBridge : IBridge
         if (user is null) return false;
         _me = user.id;
         _meUsername = user.MainUsername ?? "";
+        if (!string.IsNullOrWhiteSpace(user.phone) && _cfg.Telegram.Phone != user.phone)
+        {
+            _cfg.Telegram.Phone = user.phone;
+            try { _cfg.Save(); } catch { }
+        }
         MarkAuthed();
         await LoadDialogsAsync(force: true);
         c.OnUpdates += HandleUpdates;

@@ -85,6 +85,8 @@ phone = "{cfg.Telegram.Phone}"
         File.WriteAllText(UserConfigPath, s);
     }
 
+    public void Save() => Save(this);
+
     public static string? FindConfig()
     {
         var user = UserConfigPath;

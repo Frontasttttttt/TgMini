@@ -187,6 +187,7 @@ public partial class MainWindow : Window
             _tray.ExitRequested += () => Dispatcher.Invoke(() =>
             {
                 _isQuitting = true;
+                try { _bridge?.Dispose(); } catch { }
                 try { _tray?.Dispose(); } catch { }
                 try { Application.Current.Shutdown(); } catch { }
                 Environment.Exit(0);
@@ -204,6 +205,7 @@ public partial class MainWindow : Window
             Hide();
             return;
         }
+        try { _bridge?.Dispose(); } catch { }
         try { _tray?.Dispose(); } catch { }
         base.OnClosing(e);
         try { Application.Current.Shutdown(); } catch { }
@@ -271,7 +273,8 @@ public partial class MainWindow : Window
         }
         catch (Exception e)
         {
-            Status($"Вход не удался ({e.Message}). Предлагаю QR...");
+            Status($"Сессия недействительна ({e.Message}). Открываю QR...");
+            bridge.ResetSession();
             await QrLoginAsync(bridge);
         }
     }
