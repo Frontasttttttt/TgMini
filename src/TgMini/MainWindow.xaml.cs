@@ -131,7 +131,9 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             try { qr.Close(); } catch { /* ignore */ }
-            Status($"QR-вход не удался: {e.Message}");
+            var hint = e.Message.Contains("SharingViolation", StringComparison.OrdinalIgnoreCase)
+                ? " Закройте другие копии TgMini (панель задач) и перезапустите." : "";
+            Status($"QR-вход не удался: {e.Message}.{hint}");
             return false;
         }
     }

@@ -10,6 +10,22 @@ public partial class App : Application
         Path.Combine(AppContext.BaseDirectory, "crash.log");
     private static readonly string WtLogPath =
         Path.Combine(AppContext.BaseDirectory, "wt.log");
+    private Mutex? _instanceMutex;
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        // Один экземпляр: второй запуск не должен драться за session-файл
+        // (IO_SharingViolation_File) — просим закрыть и выходим.
+        _instanceMutex = new Mutex(true, @"Local\TgMini.SingleInstance", out var firstInstance);
+        if (!firstInstance)
+        {
+            MessageBox.Show(
+                "TgMini уже запущен.\nЕсли окна не видно — проверьте панель задач.",
+                "TgMini", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+        }
+    }
 
     public App()
     {

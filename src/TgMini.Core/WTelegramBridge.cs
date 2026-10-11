@@ -52,6 +52,9 @@ public sealed class WTelegramBridge : IBridge
     {
         "api_id" => _cfg.Telegram.ApiId.ToString(),
         "api_hash" => _cfg.Telegram.ApiHash,
+        // КРИТИЧНО: без этого ключа WTelegram пишет сессию в %USERPROFILE%\WTelegram.session
+        // и вторая копия приложения падает с IO_SharingViolation_File.
+        "session_path_name" => _sessionPath,
         "phone_number" => _cfg.Telegram.Phone,
         "verification_code" => Prompt?.Invoke("verification_code"),
         "password" => Prompt?.Invoke("password"),
