@@ -22,6 +22,15 @@ public static class MediaCache
     public static string ThumbPath(long chatId, long msgId) =>
         Path.Combine(Dir, $"{Key(chatId, msgId, "t")}_thumb.jpg");
 
+    public static string AvatarPath(long peerId) =>
+        Path.Combine(Dir, "avatars", $"{peerId}.jpg");
+
+    public static string? GetCachedAvatar(long peerId)
+    {
+        var p = AvatarPath(peerId);
+        return File.Exists(p) && new FileInfo(p).Length > 0 ? p : null;
+    }
+
     public static string SaveBytes(byte[] data, long chatId, long msgId, string ext)
     {
         Ensure();

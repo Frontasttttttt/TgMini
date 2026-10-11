@@ -123,6 +123,10 @@
                 <ListBox x:Name="DialogList" Background="#11151C" Foreground="#E8ECF1"
                          BorderThickness="0" SelectionChanged="DialogList_SelectionChanged"
                          ItemTemplate="{StaticResource DialogRowTpl}"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         VirtualizingStackPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel"
+                         ScrollViewer.CanContentScroll="True"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ContextMenu>
                         <ContextMenu Opened="DialogContextMenu_Opened">

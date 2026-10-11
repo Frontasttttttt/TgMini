@@ -20,9 +20,52 @@ public sealed class DialogRow : INotifyPropertyChanged
     public string Name { get; init; } = "";
     public string Initials { get; init; } = "";
     public string AvatarColor { get; init; } = "#2EA6FF";
-    public string Preview { get; init; } = "";
-    public int Unread { get; set; }
-    public bool IsPinned { get; init; }
+
+    private string _preview = "";
+    public string Preview
+    {
+        get => _preview;
+        set
+        {
+            if (_preview != value)
+            {
+                _preview = value;
+                OnPropertyChanged(nameof(Preview));
+            }
+        }
+    }
+
+    private int _unread;
+    public int Unread
+    {
+        get => _unread;
+        set
+        {
+            if (_unread != value)
+            {
+                _unread = value;
+                OnPropertyChanged(nameof(Unread));
+                OnPropertyChanged(nameof(NameWeight));
+                OnPropertyChanged(nameof(BadgeVisible));
+            }
+        }
+    }
+
+    private bool _isPinned;
+    public bool IsPinned
+    {
+        get => _isPinned;
+        set
+        {
+            if (_isPinned != value)
+            {
+                _isPinned = value;
+                OnPropertyChanged(nameof(IsPinned));
+                OnPropertyChanged(nameof(PinnedVisible));
+            }
+        }
+    }
+
     public string PinnedVisible => IsPinned ? "Visible" : "Collapsed";
     public string NameWeight => Unread > 0 ? "Bold" : "Normal";
     public string BadgeVisible => Unread > 0 ? "Visible" : "Collapsed";
@@ -102,6 +145,9 @@ public partial class MainWindow : Window
     private List<DialogInfo> _all = new();
     private List<ChatFolder> _folders = new();
     private Dictionary<int, MessageInfo> _byId = new();
+    private readonly Dictionary<long, DialogRow> _rowCache = new();
+    private readonly HashSet<long> _avatarRequested = new();
+    private readonly List<(string Key, Button Btn)> _folderButtons = new();
     private string _folder = "all";
     private long _peer;
     private string _peerName = "";
@@ -355,12 +401,15 @@ public partial class MainWindow : Window
     private void BuildFolderButtons()
     {
         FolderBar.Children.Clear();
+        _folderButtons.Clear();
         AddFolderButton("all", "Все");
         foreach (var f in _folders)
             AddFolderButton($"tg:{f.Id}", string.IsNullOrWhiteSpace(f.Title) ? $"#{f.Id}" : f.Title);
         var archivedCount = _all.Count(d => d.Archived);
         if (archivedCount > 0)
             AddFolderButton("archive", $"Архив ({archivedCount})");
+
+        UpdateFolderButtonsVisual();
     }
 
     private void AddFolderButton(string key, string title)
@@ -368,20 +417,33 @@ public partial class MainWindow : Window
         var b = new Button
         {
             Content = new TextBlock { Text = title, FontSize = 11 },
-            Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(key == _folder ? "#2EA6FF" : "#1A2230")),
             Foreground = Brushes.White,
             BorderThickness = new Thickness(0),
             Padding = new Thickness(9, 3, 9, 3),
             Margin = new Thickness(0, 0, 4, 4),
             Cursor = Cursors.Hand
         };
-        b.Click += (_, _) =>
-        {
-            _folder = key;
-            BuildFolderButtons();
-            PaintDialogs();
-        };
+        b.Click += (_, _) => SelectFolder(key);
+        _folderButtons.Add((key, b));
         FolderBar.Children.Add(b);
+    }
+
+    private void SelectFolder(string key)
+    {
+        if (_folder == key) return;
+        _folder = key;
+        UpdateFolderButtonsVisual();
+        PaintDialogs();
+    }
+
+    private void UpdateFolderButtonsVisual()
+    {
+        var activeBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2EA6FF"));
+        var inactiveBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A2230"));
+        foreach (var (k, b) in _folderButtons)
+        {
+            b.Background = k == _folder ? activeBrush : inactiveBrush;
+        }
     }
 
     private ChatFolder? CurrentFolder()
@@ -397,11 +459,66 @@ public partial class MainWindow : Window
         ChatKind.Group => "group", ChatKind.Channel => "channel", _ => "other"
     };
 
+    private DialogRow GetOrCreateRow(DialogInfo d)
+    {
+        if (!_rowCache.TryGetValue(d.Id, out var row))
+        {
+            row = new DialogRow
+            {
+                Id = d.Id,
+                Name = d.Name,
+                Initials = GetInitials(d.Name),
+                AvatarColor = GetAvatarColor(d.Name),
+                Preview = d.LastMessage,
+                Unread = d.Unread,
+                IsPinned = d.IsPinned
+            };
+            _rowCache[d.Id] = row;
+        }
+        else
+        {
+            row.Preview = d.LastMessage;
+            row.Unread = d.Unread;
+            row.IsPinned = d.IsPinned;
+        }
+
+        // Мгновенная проверка локального кэша аватарки без создания фоновых тасок и блокировок
+        if (string.IsNullOrEmpty(row.AvatarPath))
+        {
+            var cached = MediaCache.GetCachedAvatar(d.Id);
+            if (cached is not null)
+            {
+                row.AvatarPath = cached;
+            }
+            else if (d.Name is not ("Избранное" or "Saved Messages") && _avatarRequested.Add(d.Id))
+            {
+                // Запрашиваем загрузку аватарки только один раз за сессию
+                var peerId = d.Id;
+                _ = Task.Run(async () =>
+                {
+                    if (_bridge is null) return;
+                    var path = await _bridge.EnsureAvatarAsync(peerId);
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_rowCache.TryGetValue(peerId, out var targetRow))
+                                targetRow.AvatarPath = path;
+                        });
+                    }
+                });
+            }
+        }
+
+        return row;
+    }
+
     private void PaintDialogs()
     {
         var q = SearchBox.Text?.Trim().ToLowerInvariant() ?? "";
         var flt = CurrentFolder();
-        _rows.Clear();
+        var target = new List<DialogRow>(capacity: 60);
+
         foreach (var d in _all)
         {
             if (q.Length > 0 && !d.Name.ToLowerInvariant().Contains(q)) continue;
@@ -418,35 +535,17 @@ public partial class MainWindow : Window
                 if (!FolderMatcher.Match(d.Id, KindStr(d.Kind), d.Unread, d.Muted, d.Archived, flt)) continue;
             }
 
-            var row = new DialogRow
-            {
-                Id = d.Id,
-                Name = d.Name,
-                Initials = GetInitials(d.Name),
-                AvatarColor = GetAvatarColor(d.Name),
-                Preview = d.LastMessage,
-                Unread = d.Unread,
-                IsPinned = d.IsPinned
-            };
-            _rows.Add(row);
+            var row = GetOrCreateRow(d);
+            target.Add(row);
+            if (target.Count >= 60) break;
+        }
 
-            if (d.Name is not ("Избранное" or "Saved Messages"))
-            {
-                var peerId = d.Id;
-                _ = Task.Run(async () =>
-                {
-                    if (_bridge is null) return;
-                    var path = await _bridge.EnsureAvatarAsync(peerId);
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            if (row.Id == peerId) row.AvatarPath = path;
-                        });
-                    }
-                });
-            }
-            if (_rows.Count >= 60) break;
+        if (_rows.Count == target.Count && _rows.SequenceEqual(target)) return;
+
+        _rows.Clear();
+        foreach (var r in target)
+        {
+            _rows.Add(r);
         }
     }
 
