@@ -4,7 +4,7 @@
 
 ## 📥 Скачать
 
-**[⬇️ Скачать TgMini v1.0.0 (Windows x64, portable)](https://github.com/frontys/TgMini/releases/latest)**
+**[⬇️ Скачать TgMini v1.0.1 (Windows x64, portable)](https://github.com/frontys/TgMini/releases/latest)**
 
 Распакуйте архив в любую папку и запустите `TgMini.exe` — ничего устанавливать не нужно, .NET встроен в сборку. Внутри архива есть файл `ИНСТРУКЦИЯ.txt`.
 
