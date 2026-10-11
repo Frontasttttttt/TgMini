@@ -52,8 +52,11 @@ public sealed class WTelegramBridge : IBridge
     {
         "api_id" => _cfg.Telegram.ApiId.ToString(),
         "api_hash" => _cfg.Telegram.ApiHash,
-        // КРИТИЧНО: без этого ключа WTelegram пишет сессию в %USERPROFILE%\WTelegram.session
-        // и вторая копия приложения падает с IO_SharingViolation_File.
+        // КРИТИЧНО: WTelegram 4.4.9 запрашивает именно "session_pathname"
+        // (без подчёркивания!), не "session_path_name". Без этого ключа сессия
+        // пишется в %USERPROFILE%\WTelegram.session — её перетирают другие копии
+        // и возникают IO_SharingViolation_File / AUTH_KEY_UNREGISTERED.
+        "session_pathname" => _sessionPath,
         "session_path_name" => _sessionPath,
         "phone_number" => _cfg.Telegram.Phone,
         "verification_code" => Prompt?.Invoke("verification_code"),
@@ -139,6 +142,9 @@ public sealed class WTelegramBridge : IBridge
     public async Task<bool> ConnectAsync(CancellationToken ct = default)
     {
         MediaCache.Cleanup();
+        // Старый клиент (если был) держит session-файл открытым — иначе фоллбэк-QR ниже
+        // упадёт с IO_SharingViolation_File сам на себя.
+        try { _c?.Dispose(); } catch { /* ignore */ }
         var c = new Client(Config);
         _c = c;
         var me = await c.LoginUserIfNeeded();
@@ -537,6 +543,9 @@ public sealed class WTelegramBridge : IBridge
     public async Task<bool> LoginQrAsync(Action<byte[]> onQr, CancellationToken ct = default)
     {
         MediaCache.Cleanup();
+        // Предыдущий клиент (после неудачного ConnectAsync) ещё держит session-файл —
+        // без Dispose второй Client в том же процессе получит IO_SharingViolation_File.
+        try { _c?.Dispose(); } catch { /* ignore */ }
         var c = new Client(Config);
         _c = c;
         // qrDisplay получает строку-содержимое QR (~30 сек жизни) — рендерим PNG сами.
