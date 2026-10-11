@@ -108,18 +108,12 @@
                          BorderThickness="0" SelectionChanged="DialogList_SelectionChanged"
                          ItemTemplate="{StaticResource DialogRowTpl}"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="ContextMenu">
-                                <Setter.Value>
-                                    <ContextMenu>
-                                        <MenuItem Header="🗄️ В архив / Из архива" Click="DialogArchive_Click"/>
-                                        <MenuItem Header="🔇 Заглушить / Включить звук" Click="DialogMute_Click"/>
-                                    </ContextMenu>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="🗄️ В архив / Из архива" Click="DialogArchive_Click"/>
+                            <MenuItem Header="🔇 Заглушить / Включить звук" Click="DialogMute_Click"/>
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
                 </ListBox>
             </DockPanel>
         </Border>
