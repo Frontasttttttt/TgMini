@@ -1,46 +1,60 @@
 # TgMini [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4)](https://dotnet.microsoft.com/) [![C#](https://img.shields.io/badge/C%23-13.0-239120)](https://docs.microsoft.com/dotnet/csharp/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Портативный мини-клиент Telegram для Windows с мгновенным входом по QR-коду и оптимизацией для работы в фоне.
+A portable, lightweight Telegram desktop client for Windows built with .NET 9 and WPF. Features instant QR code authentication and background resource optimization.
 
-## 📥 Скачать
+## 📥 Download
 
-**[⬇️ Скачать TgMini v1.0.2 (Windows x64, portable)](https://github.com/frontys/TgMini/releases/latest)**
+**[⬇️ Download TgMini v1.0.3 (Windows x64, Standalone)](https://github.com/frontys/TgMini/releases/latest)**
 
-Распакуйте архив в любую папку и запустите `TgMini.exe` — ничего устанавливать не нужно, .NET встроен в сборку. Внутри архива есть файл `ИНСТРУКЦИЯ.txt`.
+Download the single-file executable `TgMini.exe` (or the portable ZIP archive) and run it directly. No installation or separate .NET runtime required.
 
-## Возможности
-- Вход исключительно по QR-коду без ручного ввода телефона и создания приложений на my.telegram.org.
-- Синхронизация папок чатов Telegram (Все, Личные, Учеба, Непрочитанные) с быстрым переключением.
-- Чаты с пузырьками сообщений, цветными именами авторов и цитированием ответов.
-- Загрузка медиафайлов (фото, гиф, видео, голосовые, документы) через диалог сохранения.
-- Логирование пропущенных сообщений в локальную базу данных SQLite.
-- Тихий режим для игр, DND и системный трей с автозапуском.
-- Глобальные горячие клавиши Win+H, Win+J и Win+M для быстрого управления.
-- Портативная архитектура без установщика.
+---
 
-## Вход по QR
-1. Запустите приложение — окно QR откроется сразу.
-2. Откройте официальный клиент Telegram: **Настройки** → **Устройства** → **Подключить устройство**.
-3. Отсканируйте QR-код с экрана монитора камерой телефона.
+## 🌟 Key Features
 
-## Сборка
+- **Instant QR Code Login:** Log in via phone camera scan without manual phone number typing or API key configuration on my.telegram.org.
+- **Folder Synchronization:** Full support for Telegram chat folders (All, Personal, Work, Unread) with fast reactive switching and avatar caching.
+- **Rich Message View:** Chat bubbles with author coloring, replies, and pinned message indicators.
+- **Media Previews & Downloads:** In-app inline previews for photos, GIFs, videos, and round video messages with instant save/open.
+- **Desktop Overlay & Tray:** Non-intrusive notification overlay for gaming/work, quiet mode (DND), and native Win32 system tray minimizing.
+- **Global Hotkeys:** Win+H, Win+J, and Win+M for quick toggle, minimize, and mute actions.
+- **SQLite Message Archive:** Missed messages cached in a local WAL-mode SQLite database.
+- **Single-File Standalone Binary:** Self-contained single-executable deployment with zero external dependencies.
+
+---
+
+## 📱 QR Code Login
+
+1. Run `TgMini.exe` — the QR login window appears automatically.
+2. In your official Telegram mobile app, open **Settings** → **Devices** → **Link Desktop Device**.
+3. Point your camera at the screen to scan the QR code and authorize.
+
+---
+
+## 🛠️ Building from Source
+
 ```bash
 dotnet restore TgMini.sln
 dotnet build TgMini.sln --configuration Release
-dotnet publish src/TgMini/TgMini.csproj -c Release -o dist
+dotnet publish src/TgMini/TgMini.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist
 ```
 
-Требуется [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
+**Requirements:** [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
 
-## Структура проекта
-| Path | Что внутри |
+---
+
+## 📂 Project Architecture
+
+| Component | Description |
 | :--- | :--- |
-| `src/TgMini` | WPF-приложение (MainWindow, SetupWindow, QrWindow, VerificationWindow) |
-| `src/TgMini.Core` | Ядро: WTelegramBridge, AppConfig, FolderMatcher, MediaCache, SQLite |
-| `tests/TgMini.Smoke` | Смоук-тесты (SMOKE_OK) |
-| `tools/TgMini.BridgeTest` | Тестирование Telegram API-моста |
-| `tools/TgMini.Doc` | Документация и вспомогательные скрипты |
-| `TgMini.sln` | Главный файл решения |
+| `src/TgMini` | WPF application layer (`MainWindow`, `NotificationWindow`, `QrWindow`, `TrayHelper`) |
+| `src/TgMini.Core` | Core logic: `WTelegramBridge`, `AppConfig`, `FolderMatcher`, `MediaCache`, SQLite |
+| `tests/TgMini.Smoke` | Automated integration and smoke tests |
+| `tools/TgMini.BridgeTest` | Telegram API MTProto bridge verification tools |
+| `TgMini.sln` | Visual Studio / .NET solution |
 
-## Лицензия
-Распространяется под условиями лицензии [MIT](LICENSE).
+---
+
+## 📄 License
+
+Distributed under the terms of the [MIT License](LICENSE).
