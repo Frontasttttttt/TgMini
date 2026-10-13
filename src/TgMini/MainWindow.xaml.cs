@@ -320,13 +320,42 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             var d = _all.FirstOrDefault(x => x.Id == m.ChatId);
+            var unread = _peer == m.ChatId || m.Out ? 0 : 1;
             if (d is not null)
             {
                 _all.Remove(d);
-                var unread = _peer == m.ChatId || m.Out ? 0 : d.Unread + 1;
+                unread = _peer == m.ChatId || m.Out ? 0 : d.Unread + 1;
                 _all.Insert(0, d with { LastMessage = m.Text, Unread = unread, Date = m.Date });
-                PaintDialogs();
             }
+            else
+            {
+                // Новый чат, которого ещё не было в загруженном списке!
+                var chatName = !string.IsNullOrWhiteSpace(m.Name) && m.Name != "Telegram" ? m.Name : $"Чат {m.ChatId}";
+                var kind = m.IsGroup ? ChatKind.Group : ChatKind.User;
+                var newDlg = new DialogInfo(
+                    m.ChatId,
+                    chatName,
+                    m.Text,
+                    m.Date,
+                    unread,
+                    m.IsGroup,
+                    kind,
+                    false,
+                    false,
+                    false,
+                    int.MaxValue
+                );
+                _all.Insert(0, newDlg);
+            }
+
+            if (_rowCache.TryGetValue(m.ChatId, out var cachedRow))
+            {
+                cachedRow.Preview = m.Text;
+                cachedRow.Unread = unread;
+            }
+
+            PaintDialogs();
+
             if (_peer == m.ChatId)
             {
                 _ = LoadHistoryAsync();
@@ -386,6 +415,13 @@ public partial class MainWindow : Window
             {
                 _peer = d.Id;
                 _peerName = d.Name;
+                ChatTitle.Text = _peerName;
+                _ = LoadHistoryAsync();
+            }
+            else
+            {
+                _peer = chatId;
+                _peerName = $"Чат {chatId}";
                 ChatTitle.Text = _peerName;
                 _ = LoadHistoryAsync();
             }
@@ -901,6 +937,15 @@ public partial class MainWindow : Window
         await LoadHistoryAsync();
     }
 
+    private async void InputBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            await PasteFromClipboardAsync();
+        }
+    }
+
     private void InputBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
@@ -909,6 +954,136 @@ public partial class MainWindow : Window
             Send_Click(sender, e);
         }
     }
+
+    private async Task PasteFromClipboardAsync()
+    {
+        try
+        {
+            // 1. Картинка из буфера (скриншоты Win+Shift+S, скопированные изображения)
+            if (Clipboard.ContainsImage())
+            {
+                await PasteImageFromClipboardAsync();
+                return;
+            }
+
+            // 2. Файлы из проводника
+            if (Clipboard.ContainsFileDropList())
+            {
+                await PasteFilesFromClipboardAsync();
+                return;
+            }
+
+            // 3. Текст
+            if (Clipboard.ContainsText())
+            {
+                var text = Clipboard.GetText();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    var selStart = InputBox.SelectionStart;
+                    var selLen = InputBox.SelectionLength;
+                    var cur = InputBox.Text ?? "";
+                    if (selStart > cur.Length) selStart = cur.Length;
+                    InputBox.Text = cur.Remove(selStart, selLen).Insert(selStart, text);
+                    InputBox.SelectionStart = selStart + text.Length;
+                    InputBox.SelectionLength = 0;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка буфера обмена: {ex.Message}");
+        }
+    }
+
+    private async Task PasteImageFromClipboardAsync()
+    {
+        if (_bridge is null || _peer == 0) return;
+        try
+        {
+            var image = Clipboard.GetImage();
+            if (image is null) return;
+
+            var tempPath = Path.Combine(Path.GetTempPath(), $"tgmini_clip_{DateTime.UtcNow.Ticks}.png");
+            using (var fs = new FileStream(tempPath, FileMode.Create))
+            {
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+                encoder.Save(fs);
+            }
+
+            Status("Отправка изображения из буфера обмена...");
+            var rt = _replyTo;
+            _replyTo = 0;
+            _editMsgId = 0;
+            ReplyBar.Visibility = Visibility.Collapsed;
+
+            var prog = new Progress<(long Sent, long Total)>(x =>
+                Status($"Загрузка изображения: {(x.Total > 0 ? x.Sent * 100 / x.Total : 0)}%"));
+            var ok = await _bridge.SendFileAsync(_peer, tempPath, replyTo: rt, progress: prog);
+            if (!ok) Status("Не удалось отправить изображение");
+            else
+            {
+                Status("");
+                await LoadHistoryAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка отправки картинки: {ex.Message}");
+        }
+    }
+
+    private async Task PasteFilesFromClipboardAsync()
+    {
+        if (_bridge is null || _peer == 0) return;
+        try
+        {
+            var files = Clipboard.GetFileDropList();
+            if (files == null || files.Count == 0) return;
+
+            var rt = _replyTo;
+            _replyTo = 0;
+            _editMsgId = 0;
+            ReplyBar.Visibility = Visibility.Collapsed;
+
+            foreach (string? p in files)
+            {
+                if (string.IsNullOrEmpty(p) || !File.Exists(p)) continue;
+                var prog = new Progress<(long Sent, long Total)>(x =>
+                    Status($"Загрузка {Path.GetFileName(p)}: {(x.Total > 0 ? x.Sent * 100 / x.Total : 0)}%"));
+                var ok = await _bridge.SendFileAsync(_peer, p, replyTo: rt, progress: prog);
+                if (!ok) Status($"Не удалось отправить {Path.GetFileName(p)}");
+            }
+            await LoadHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка отправки файлов: {ex.Message}");
+        }
+    }
+
+    private async void InputContextMenu_Paste_Click(object sender, RoutedEventArgs e) =>
+        await PasteFromClipboardAsync();
+
+    private void InputContextMenu_Copy_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(InputBox.SelectedText))
+            Clipboard.SetText(InputBox.SelectedText);
+    }
+
+    private void InputContextMenu_Cut_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(InputBox.SelectedText))
+        {
+            Clipboard.SetText(InputBox.SelectedText);
+            var selStart = InputBox.SelectionStart;
+            InputBox.Text = InputBox.Text.Remove(selStart, InputBox.SelectionLength);
+            InputBox.SelectionStart = selStart;
+        }
+    }
+
+    private void InputContextMenu_Clear_Click(object sender, RoutedEventArgs e) =>
+        InputBox.Clear();
 
     private static MsgRow? GetMsgRowFromSender(object sender)
     {
@@ -1056,17 +1231,37 @@ public partial class MainWindow : Window
         Status(newArchived ? $"Чат '{d.Name}' перемещён в архив" : $"Чат '{d.Name}' извлечён из архива");
     }
 
-    private void DialogMute_Click(object sender, RoutedEventArgs e)
+    private async Task ApplyChatMuteAsync(TimeSpan? duration, string label)
     {
         if (DialogList.SelectedItem is not DialogRow r) return;
         var d = _all.FirstOrDefault(x => x.Id == r.Id);
         if (d is null) return;
         var idx = _all.IndexOf(d);
-        var newMuted = !d.Muted;
-        _all[idx] = d with { Muted = newMuted };
+        var isMuted = duration.HasValue;
+        _all[idx] = d with { Muted = isMuted };
         PaintDialogs();
-        Status(newMuted ? $"Чат '{d.Name}' заглушён" : $"Звук чата '{d.Name}' включён");
+        Status(isMuted ? $"Чат '{d.Name}' заглушён {label}" : $"Звук чата '{d.Name}' включён");
+
+        if (_bridge is not null)
+        {
+            await _bridge.MuteChatAsync(d.Id, duration);
+        }
     }
+
+    private async void DialogMute_Unmute_Click(object sender, RoutedEventArgs e) =>
+        await ApplyChatMuteAsync(null, "");
+
+    private async void DialogMute_1h_Click(object sender, RoutedEventArgs e) =>
+        await ApplyChatMuteAsync(TimeSpan.FromHours(1), "на 1 час");
+
+    private async void DialogMute_8h_Click(object sender, RoutedEventArgs e) =>
+        await ApplyChatMuteAsync(TimeSpan.FromHours(8), "на 8 часов");
+
+    private async void DialogMute_2d_Click(object sender, RoutedEventArgs e) =>
+        await ApplyChatMuteAsync(TimeSpan.FromDays(2), "на 2 дня");
+
+    private async void DialogMute_Forever_Click(object sender, RoutedEventArgs e) =>
+        await ApplyChatMuteAsync(TimeSpan.MaxValue, "навсегда");
 
     private void DialogContextMenu_Opened(object sender, RoutedEventArgs e)
     {
@@ -1074,9 +1269,16 @@ public partial class MainWindow : Window
         if (DialogList.SelectedItem is not DialogRow r)
         {
             MenuFolders.IsEnabled = false;
+            MenuMute.IsEnabled = false;
             return;
         }
         MenuFolders.IsEnabled = true;
+        MenuMute.IsEnabled = true;
+
+        var curChat = _all.FirstOrDefault(x => x.Id == r.Id);
+        var isMuted = curChat?.Muted == true;
+        MenuMute.Header = isMuted ? "🔇 Уведомления (заглушен)" : "🔔 Уведомления (со звуком)";
+        MenuMuteUnmute.IsEnabled = isMuted;
         if (_folders.Count == 0)
         {
             MenuFolders.Items.Add(new MenuItem { Header = "(нет папок)", IsEnabled = false });

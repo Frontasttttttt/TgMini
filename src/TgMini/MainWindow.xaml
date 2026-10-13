@@ -131,7 +131,14 @@
                     <ListBox.ContextMenu>
                         <ContextMenu Opened="DialogContextMenu_Opened">
                             <MenuItem Header="🗄️ В архив / Из архива" Click="DialogArchive_Click"/>
-                            <MenuItem Header="🔇 Заглушить / Включить звук" Click="DialogMute_Click"/>
+                            <MenuItem x:Name="MenuMute" Header="🔇 Уведомления">
+                                <MenuItem x:Name="MenuMuteUnmute" Header="🔊 Включить звук" Click="DialogMute_Unmute_Click"/>
+                                <Separator/>
+                                <MenuItem Header="🔇 На 1 час" Click="DialogMute_1h_Click"/>
+                                <MenuItem Header="🔇 На 8 часов" Click="DialogMute_8h_Click"/>
+                                <MenuItem Header="🔇 На 2 дня" Click="DialogMute_2d_Click"/>
+                                <MenuItem Header="🔇 Навсегда" Click="DialogMute_Forever_Click"/>
+                            </MenuItem>
                             <MenuItem x:Name="MenuFolders" Header="📁 В папку..."/>
                         </ContextMenu>
                     </ListBox.ContextMenu>
@@ -183,7 +190,19 @@
                 <Button Content="+" DockPanel.Dock="Right" Style="{StaticResource GhostBtn}"
                         Margin="8,0,0,0" Click="Attach_Click"/>
                 <TextBox x:Name="InputBox" Style="{StaticResource DarkBox}" Padding="10,8"
-                         VerticalContentAlignment="Center" KeyDown="InputBox_KeyDown"/>
+                         VerticalContentAlignment="Center"
+                         PreviewKeyDown="InputBox_PreviewKeyDown"
+                         KeyDown="InputBox_KeyDown">
+                    <TextBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="📋 Вставить (текст / фото)" Click="InputContextMenu_Paste_Click"/>
+                            <MenuItem Header="📄 Копировать" Click="InputContextMenu_Copy_Click"/>
+                            <MenuItem Header="✂️ Вырезать" Click="InputContextMenu_Cut_Click"/>
+                            <Separator/>
+                            <MenuItem Header="🗑️ Очистить" Click="InputContextMenu_Clear_Click"/>
+                        </ContextMenu>
+                    </TextBox.ContextMenu>
+                </TextBox>
             </DockPanel>
             <TextBlock x:Name="StatusLabel" Grid.Row="4" Foreground="#8B949E"
                        FontSize="11" Margin="0,2,0,0"/>

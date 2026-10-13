@@ -543,6 +543,32 @@ public sealed class WTelegramBridge : IBridge
         }
     }
 
+    public async Task<bool> MuteChatAsync(long peerId, TimeSpan? duration, CancellationToken ct = default)
+    {
+        if (_c is null) return false;
+        try
+        {
+            var peer = await ResolveAsync(peerId);
+            if (peer is null) return false;
+            var notifyPeer = new InputNotifyPeer { peer = peer };
+            DateTime muteUntil = duration.HasValue
+                ? (duration.Value == TimeSpan.MaxValue ? DateTime.UtcNow.AddYears(10) : DateTime.UtcNow.Add(duration.Value))
+                : DateTime.MinValue;
+
+            var settings = new InputPeerNotifySettings
+            {
+                mute_until = muteUntil
+            };
+            await _c.Account_UpdateNotifySettings(notifyPeer, settings);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"MuteChat error: {e.Message}");
+            return false;
+        }
+    }
+
     public async Task<bool> DeleteMessagesAsync(long peerId, int[] msgIds, CancellationToken ct = default)
     {
         if (_c is null || msgIds == null || msgIds.Length == 0) return false;

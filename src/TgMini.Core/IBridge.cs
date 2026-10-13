@@ -25,6 +25,7 @@ public interface IBridge : IDisposable
     Task<bool> ToggleChatFolderAsync(int folderId, long peerId, CancellationToken ct = default);
     Task<bool> DeleteMessagesAsync(long peerId, int[] msgIds, CancellationToken ct = default);
     Task<bool> EditMessageAsync(long peerId, int msgId, string newText, CancellationToken ct = default);
+    Task<bool> MuteChatAsync(long peerId, TimeSpan? duration, CancellationToken ct = default);
 
     /// <summary>
     /// QR-вход: показывает QR до тех пор, пока пользователь не отсканирует его
