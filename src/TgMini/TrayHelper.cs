@@ -13,6 +13,7 @@ public sealed class TrayHelper : IDisposable
     private const int WM_LBUTTONDBLCLK = 0x0203;
 
     private const int NIM_ADD = 0x00000000;
+    private const int NIM_MODIFY = 0x00000001;
     private const int NIM_DELETE = 0x00000002;
 
     private const int NIF_MESSAGE = 0x00000001;
@@ -62,6 +63,9 @@ public sealed class TrayHelper : IDisposable
     private static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
 
     [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -88,6 +92,9 @@ public sealed class TrayHelper : IDisposable
     private IntPtr _hwnd;
     private bool _added;
     private NOTIFYICONDATA _nid;
+    private IntPtr _defaultIcon = IntPtr.Zero;
+    private IntPtr _customIcon = IntPtr.Zero;
+    private int _lastUnread = -1;
 
     public event Action? OpenRequested;
     public event Action? ExitRequested;
@@ -100,7 +107,7 @@ public sealed class TrayHelper : IDisposable
     public void Init()
     {
         _hwnd = new WindowInteropHelper(_window).EnsureHandle();
-        var hIcon = LoadIcon(IntPtr.Zero, IDI_APPLICATION);
+        _defaultIcon = LoadIcon(IntPtr.Zero, IDI_APPLICATION);
 
         _nid = new NOTIFYICONDATA
         {
@@ -109,7 +116,7 @@ public sealed class TrayHelper : IDisposable
             uID = 1,
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAYNOTIFY,
-            hIcon = hIcon,
+            hIcon = _defaultIcon,
             szTip = "TG Mini"
         };
 
@@ -117,6 +124,62 @@ public sealed class TrayHelper : IDisposable
 
         var source = HwndSource.FromHwnd(_hwnd);
         source?.AddHook(WndProc);
+    }
+
+    public void UpdateUnreadCount(int unread)
+    {
+        if (!_added || _lastUnread == unread) return;
+        _lastUnread = unread;
+
+        _nid.szTip = unread > 0 ? $"TG Mini ({unread} непрочитанных)" : "TG Mini";
+
+        if (unread > 0)
+        {
+            try
+            {
+                using var bmp = new System.Drawing.Bitmap(16, 16);
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                {
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(0x2E, 0xA6, 0xFF));
+                    g.FillEllipse(brush, 0, 0, 15, 15);
+
+                    var txt = unread > 99 ? "99+" : unread.ToString();
+                    var fontSize = txt.Length > 2 ? 6.5f : (txt.Length > 1 ? 7.5f : 9f);
+                    using var font = new System.Drawing.Font("Segoe UI", fontSize, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
+                    using var textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White);
+                    using var sf = new System.Drawing.StringFormat
+                    {
+                        Alignment = System.Drawing.StringAlignment.Center,
+                        LineAlignment = System.Drawing.StringAlignment.Center
+                    };
+                    g.DrawString(txt, font, textBrush, new System.Drawing.RectangleF(0, 0, 16, 16), sf);
+                }
+
+                var newHIcon = bmp.GetHicon();
+                if (_customIcon != IntPtr.Zero)
+                {
+                    DestroyIcon(_customIcon);
+                }
+                _customIcon = newHIcon;
+                _nid.hIcon = _customIcon;
+            }
+            catch
+            {
+                _nid.hIcon = _defaultIcon;
+            }
+        }
+        else
+        {
+            if (_customIcon != IntPtr.Zero)
+            {
+                DestroyIcon(_customIcon);
+                _customIcon = IntPtr.Zero;
+            }
+            _nid.hIcon = _defaultIcon;
+        }
+
+        Shell_NotifyIcon(NIM_MODIFY, ref _nid);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -168,6 +231,11 @@ public sealed class TrayHelper : IDisposable
         {
             Shell_NotifyIcon(NIM_DELETE, ref _nid);
             _added = false;
+        }
+        if (_customIcon != IntPtr.Zero)
+        {
+            DestroyIcon(_customIcon);
+            _customIcon = IntPtr.Zero;
         }
     }
 }

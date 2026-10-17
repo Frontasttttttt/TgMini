@@ -156,6 +156,9 @@ public partial class MainWindow : Window
     private int _oldestMsgId = 0;
     private bool _hasMoreHistory = true;
     private bool _isLoadingHistory = false;
+    private MediaPlayer? _mediaPlayer;
+    private int _playingVoiceId;
+    private bool _isCompact;
 
     private TrayHelper? _tray;
     private bool _isQuitting;
@@ -203,13 +206,24 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
             Hide();
+            MemoryHelper.TrimWorkingSet();
             return;
         }
+        StopVoicePlayer();
         try { _bridge?.Dispose(); } catch { }
         try { _tray?.Dispose(); } catch { }
         base.OnClosing(e);
         try { Application.Current.Shutdown(); } catch { }
         Environment.Exit(0);
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Minimized)
+        {
+            MemoryHelper.TrimWorkingSet();
+        }
     }
 
     private static string GetInitials(string name)
@@ -428,6 +442,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void TogglePanel_Click(object sender, RoutedEventArgs e)
+    {
+        _isCompact = !_isCompact;
+        LeftCol.Width = _isCompact ? new GridLength(0) : new GridLength(280);
+        TogglePanelBtn.Content = _isCompact ? "⮞" : "☰";
+        TogglePanelBtn.ToolTip = _isCompact ? "Развернуть список чатов" : "Компактный режим (скрыть чаты)";
+    }
+
     private async Task RefreshAsync(bool force = false)
     {
         if (_bridge is null) return;
@@ -435,6 +457,7 @@ public partial class MainWindow : Window
         _folders = (await _bridge.GetFoldersAsync()).ToList();
         BuildFolderButtons();
         PaintDialogs();
+        MemoryHelper.TrimWorkingSet();
     }
 
     private void BuildFolderButtons()
@@ -579,6 +602,9 @@ public partial class MainWindow : Window
             if (target.Count >= 60) break;
         }
 
+        var totalUnread = _all.Sum(d => d.Unread);
+        _tray?.UpdateUnreadCount(totalUnread);
+
         if (_rows.Count == target.Count && _rows.SequenceEqual(target)) return;
 
         _rows.Clear();
@@ -593,6 +619,11 @@ public partial class MainWindow : Window
     private async void DialogList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DialogList.SelectedItem is not DialogRow r) return;
+        StopVoicePlayer();
+        _feed.Clear();
+        _byId.Clear();
+        MemoryHelper.TrimWorkingSet();
+
         _peer = r.Id;
         _peerName = r.Name;
         ChatTitle.Text = _peerName;
@@ -732,8 +763,8 @@ public partial class MainWindow : Window
         {
             hint = m.Kind switch
             {
-                MediaKind.Voice => $"🎤 Голосовое {m.MediaLabel}",
-                MediaKind.Audio => $"🎵 Аудио {m.MediaLabel}",
+                MediaKind.Voice => $"🎤 {m.MediaLabel}",
+                MediaKind.Audio => $"🎵 {m.MediaLabel}",
                 MediaKind.RoundVideo => "⭕ Кружочек",
                 MediaKind.Video => "🎬 Видео",
                 MediaKind.File => $"📄 {m.MediaLabel} — скачать",
@@ -797,11 +828,26 @@ public partial class MainWindow : Window
                 break;
             case MediaKind.Voice:
             case MediaKind.Audio:
-                Status("Скачиваю аудио...");
-                var ap = Path.Combine(Path.GetTempPath(), $"tgmini_{id}.ogg");
-                var gotAudio = await _bridge.DownloadToAsync(_peer, id, ap);
-                if (gotAudio.Length > 0) OpenExternal(gotAudio);
-                Status("");
+                if (_playingVoiceId == id)
+                {
+                    StopVoicePlayer();
+                    Status("Воспроизведение остановлено");
+                    return;
+                }
+                Status("Загружаю аудио...");
+                var ext = m.Kind == MediaKind.Voice ? "ogg" : "mp3";
+                var ap = Path.Combine(Path.GetTempPath(), $"tgmini_{id}.{ext}");
+                string gotAudio = ap;
+                if (!File.Exists(ap) || new FileInfo(ap).Length == 0)
+                {
+                    gotAudio = await _bridge.DownloadToAsync(_peer, id, ap);
+                }
+                if (string.IsNullOrEmpty(gotAudio) || !File.Exists(gotAudio))
+                {
+                    Status("Не удалось скачать аудио");
+                    return;
+                }
+                PlayVoice(gotAudio, id, string.IsNullOrEmpty(m.MediaLabel) ? "Голосовое" : m.MediaLabel);
                 break;
             case MediaKind.RoundVideo:
             case MediaKind.Video:
@@ -821,6 +867,50 @@ public partial class MainWindow : Window
                 }
                 else Status("Превью не получено");
                 break;
+        }
+    }
+
+    private void PlayVoice(string path, int msgId, string label)
+    {
+        StopVoicePlayer();
+        try
+        {
+            _mediaPlayer = new MediaPlayer();
+            _mediaPlayer.MediaEnded += (_, _) => Dispatcher.Invoke(StopVoicePlayer);
+            _mediaPlayer.MediaFailed += (_, args) => Dispatcher.Invoke(() =>
+            {
+                Status($"Ошибка воспроизведения ({args.ErrorException?.Message ?? "формат не поддерживается"}), открываю во внешнем плеере...");
+                StopVoicePlayer();
+                OpenExternal(path);
+            });
+            _mediaPlayer.Open(new Uri(path));
+            _mediaPlayer.Play();
+            _playingVoiceId = msgId;
+            Status($"▶ Играет {label} (кликните повторно, чтобы остановить)");
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка плеера: {ex.Message}");
+            OpenExternal(path);
+        }
+    }
+
+    private void StopVoicePlayer()
+    {
+        if (_mediaPlayer is not null)
+        {
+            try
+            {
+                _mediaPlayer.Stop();
+                _mediaPlayer.Close();
+            }
+            catch { /* ignore */ }
+            _mediaPlayer = null;
+        }
+        _playingVoiceId = 0;
+        if (StatusLabel.Text.StartsWith("▶ Играет"))
+        {
+            Status("");
         }
     }
 
