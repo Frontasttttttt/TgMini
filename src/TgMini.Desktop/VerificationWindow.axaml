@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TgMini.Desktop.VerificationWindow"
+        Title="TG Mini — Подтверждение" SizeToContent="Height" Width="380"
+        WindowStartupLocation="CenterOwner" Background="#0B0E13"
+        CanResize="False">
+    <StackPanel Margin="18" Spacing="10">
+        <TextBlock x:Name="PromptText" Foreground="#E8ECF1" FontSize="13" TextWrapping="Wrap"
+                   Text="Введите код из Telegram"/>
+        <TextBox x:Name="ValueBox" Padding="10,8" FontSize="15"
+                 Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0"
+                 CornerRadius="6" KeyDown="ValueBox_KeyDown"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
+            <Button Content="Отмена" Height="34" Padding="16,0" Click="Cancel_Click"
+                    Background="#1A2230" Foreground="#8B949E" BorderThickness="0" CornerRadius="6"/>
+            <Button Content="OK" Height="34" Padding="20,0" Click="Ok_Click"
+                    Background="#2EA6FF" Foreground="White" FontWeight="Bold" BorderThickness="0" CornerRadius="6"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

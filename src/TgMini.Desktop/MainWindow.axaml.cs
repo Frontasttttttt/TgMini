@@ -119,7 +119,12 @@ public partial class MainWindow : Window
             {
                 Status("Сессии нет — открываю QR-вход...");
                 var ok = await QrLoginAsync(bridge);
-                if (ok) return;
+                if (!ok)
+                {
+                    Status("QR-вход отменён или прерван.");
+                    return;
+                }
+                return;
             }
 
             await bridge.ConnectAsync();
@@ -129,9 +134,7 @@ public partial class MainWindow : Window
         }
         catch (Exception e)
         {
-            Status($"Сессия недействительна ({e.Message}). Открываю QR...");
-            bridge.ResetSession();
-            await QrLoginAsync(bridge);
+            Status($"Ошибка Telegram: {e.Message}");
         }
     }
 
@@ -168,7 +171,29 @@ public partial class MainWindow : Window
 
     private string? AskPrompt(string what)
     {
-        return "";
+        var tcs = new TaskCompletionSource<string?>();
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                var dialog = new VerificationWindow(what);
+                var res = await dialog.ShowDialog<bool>(this);
+                tcs.TrySetResult(res && !string.IsNullOrEmpty(dialog.Value) ? dialog.Value : null);
+            }
+            catch
+            {
+                tcs.TrySetResult(null);
+            }
+        });
+
+        try
+        {
+            return tcs.Task.GetAwaiter().GetResult();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void OnLiveMessage(IncomingMessage m)
