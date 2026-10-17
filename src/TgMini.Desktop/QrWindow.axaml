@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TgMini.Desktop.QrWindow"
+        Title="TG Mini — вход по QR"
+        Width="360" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Background="#0B0E13"
+        CanResize="False">
+    <StackPanel Margin="18" Spacing="12">
+        <TextBlock Foreground="#E8ECF1" FontSize="13" TextWrapping="Wrap"
+                   Text="Откройте официальный Telegram → Настройки → Устройства → Подключить устройство и наведите камеру на код:"/>
+        <Border Background="White" CornerRadius="8" Padding="12" HorizontalAlignment="Center">
+            <Image x:Name="QrImage" Width="240" Height="240"/>
+        </Border>
+        <TextBlock x:Name="QrStatus" Foreground="#8B949E" FontSize="12" TextWrapping="Wrap"
+                   Text="Ожидание сканирования..."/>
+        <Button Content="Отмена" Height="32" Click="Cancel_Click"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0"/>
+    </StackPanel>
+</Window>

@@ -1,0 +1,195 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:TgMini.Desktop"
+        x:Class="TgMini.Desktop.MainWindow"
+        Title="TG Mini" Width="820" Height="580" MinWidth="360" MinHeight="360"
+        Background="#0E1621"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid RowDefinitions="*,Auto">
+        <!-- Главная рабочая область -->
+        <Grid Grid.Row="0" x:Name="MainGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" MinWidth="0"/>
+                <ColumnDefinition Width="1"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ЛЕВАЯ КОЛОНКА: Папки, Поиск, Список чатов -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*" Background="#17212B">
+                <!-- Папки -->
+                <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,8,8,4">
+                    <StackPanel x:Name="FolderBar" Orientation="Horizontal" Spacing="4"/>
+                </ScrollViewer>
+
+                <!-- Поиск -->
+                <TextBox Grid.Row="1" x:Name="SearchBox" Margin="8,4,8,8"
+                         Watermark="🔍 Поиск..."
+                         Background="#242F3D" Foreground="#F5F5F5"
+                         BorderThickness="0" CornerRadius="6" Padding="8,6"/>
+
+                <!-- Список диалогов -->
+                <ListBox Grid.Row="2" x:Name="DialogList"
+                         Background="Transparent" BorderThickness="0"
+                         SelectionMode="Single">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Padding" Value="4,4"/>
+                            <Setter Property="Margin" Value="4,1"/>
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="local:DialogRow">
+                            <Grid ColumnDefinitions="44,*,Auto" Margin="4">
+                                <!-- Круглая аватарка -->
+                                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20" ClipToBounds="True">
+                                    <Panel>
+                                        <Border Background="{Binding AvatarColor}">
+                                            <TextBlock Text="{Binding Initials}" Foreground="White" FontWeight="Bold" FontSize="13"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Image Source="{Binding AvatarPath, Converter={x:Static local:ThumbConverter.Instance}, ConverterParameter=48}"
+                                               Stretch="UniformToFill"
+                                               IsVisible="{Binding AvatarVisible}"/>
+                                    </Panel>
+                                </Border>
+
+                                <!-- Имя и превью -->
+                                <StackPanel Grid.Column="1" Margin="8,2,4,2" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="📌" FontSize="11" Foreground="#2EA6FF" IsVisible="{Binding PinnedVisible}"/>
+                                        <TextBlock Text="{Binding Name}" FontWeight="{Binding NameWeight}" Foreground="#F5F5F5" FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Preview}" Foreground="#7F8C99" FontSize="11"
+                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                </StackPanel>
+
+                                <!-- Бейдж непрочитанных -->
+                                <Border Grid.Column="2" Background="#2EA6FF" CornerRadius="10" MinWidth="20" Height="20"
+                                        Padding="5,0" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                        IsVisible="{Binding BadgeVisible}">
+                                    <TextBlock Text="{Binding Unread}" Foreground="White" FontSize="11" FontWeight="Bold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- Разделитель -->
+            <Border Grid.Column="1" Background="#0E1621"/>
+
+            <!-- ПРАВАЯ КОЛОНКА: Чат -->
+            <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Background="#0E1621">
+                <!-- Шапка чата -->
+                <Border Grid.Row="0" Background="#17212B" Padding="12,8" BorderBrush="#0E1621" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Button Grid.Column="0" x:Name="TogglePanelBtn" Content="☰"
+                                Width="32" Height="32" Padding="0" Margin="0,0,10,0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Background="#242F3D" Foreground="#F5F5F5" BorderThickness="0" CornerRadius="6"
+                                Click="TogglePanel_Click" ToolTip.Tip="Компактный режим (скрыть чаты)"/>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="ChatTitle" Text="Выберите чат" FontWeight="Bold" FontSize="14" Foreground="#F5F5F5"/>
+                            <TextBlock x:Name="ChatSub" Text="" FontSize="11" Foreground="#7F8C99"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Лента сообщений -->
+                <ScrollViewer Grid.Row="1" x:Name="FeedScroll" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="FeedPanel" Margin="12,8" Spacing="6">
+                        <Button x:Name="LoadMoreBtn" Content="⬆ Загрузить более ранние сообщения"
+                                HorizontalAlignment="Center" Background="#242F3D" Foreground="#2EA6FF"
+                                BorderThickness="0" CornerRadius="6" Padding="12,6" FontSize="11"
+                                IsVisible="False" Click="LoadMore_Click"/>
+                        <ItemsControl x:Name="FeedList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:MsgRow">
+                                    <Grid Margin="0,3">
+                                        <Border CornerRadius="10" Padding="10,6" MaxWidth="500"
+                                                Background="{Binding Bubble}"
+                                                HorizontalAlignment="{Binding Align}">
+                                            <StackPanel Spacing="3">
+                                                <!-- Автор (в группах) -->
+                                                <TextBlock Text="{Binding Author}" Foreground="{Binding AuthorColor}"
+                                                           FontWeight="Bold" FontSize="11" IsVisible="{Binding AuthorVisible}"/>
+
+                                                <!-- Ответ / Реплай -->
+                                                <Border Background="#141E28" CornerRadius="4" Padding="6,3" IsVisible="{Binding QuoteVisible}">
+                                                    <TextBlock Text="{Binding Quote}" Foreground="#2EA6FF" FontSize="11"/>
+                                                </Border>
+
+                                                <!-- Фотография / превью -->
+                                                <Border CornerRadius="8" ClipToBounds="True" MaxWidth="340" MaxHeight="340"
+                                                        IsVisible="{Binding ImageVisible}" Margin="0,2">
+                                                    <Image Source="{Binding ImagePath, Converter={x:Static local:ThumbConverter.Instance}, ConverterParameter=340}"
+                                                           Stretch="Uniform"/>
+                                                </Border>
+
+                                                <!-- Медиа хинт (голосовое, файл) -->
+                                                <Border Background="#242F3D" CornerRadius="6" Padding="6,4"
+                                                        IsVisible="{Binding MediaVisible}" PointerPressed="Media_PointerPressed"
+                                                        Tag="{Binding Id}" Cursor="Hand">
+                                                    <TextBlock Text="{Binding MediaHint}" Foreground="#2EA6FF" FontSize="11" FontWeight="SemiBold"/>
+                                                </Border>
+
+                                                <!-- Текст сообщения -->
+                                                <SelectableTextBlock Text="{Binding Text}" Foreground="#F5F5F5" FontSize="13"
+                                                                     TextWrapping="Wrap" Margin="0,1"/>
+
+                                                <!-- Время -->
+                                                <TextBlock Text="{Binding Time}" Foreground="#7F8C99" FontSize="10"
+                                                           HorizontalAlignment="Right" Margin="0,1,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Панель ответа / редактирования -->
+                <Border Grid.Row="2" x:Name="ReplyBar" Background="#17212B" Padding="12,6" BorderBrush="#0E1621" BorderThickness="0,1,0,0" IsVisible="False">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="ReplyText" Foreground="#2EA6FF" FontSize="11" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="✕" Width="24" Height="24" Padding="0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Background="Transparent" Foreground="#7F8C99" BorderThickness="0" Click="CancelReply_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- Панель ввода сообщения -->
+                <Border Grid.Row="3" Background="#17212B" Padding="10,8" BorderBrush="#0E1621" BorderThickness="0,1,0,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Button Grid.Column="0" Content="📎" Width="34" Height="34" Padding="0" Margin="0,0,8,0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Background="#242F3D" Foreground="#F5F5F5" BorderThickness="0" CornerRadius="17"
+                                Click="Attach_Click" ToolTip.Tip="Отправить файл"/>
+
+                        <TextBox Grid.Column="1" x:Name="MsgBox" Watermark="Написать сообщение..."
+                                 Background="#242F3D" Foreground="#F5F5F5" BorderThickness="0"
+                                 CornerRadius="8" Padding="10,8" FontSize="13" MaxHeight="100"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 KeyDown="MsgBox_KeyDown"/>
+
+                        <Button Grid.Column="2" Content="➤" Width="34" Height="34" Padding="0" Margin="8,0,0,0"
+                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                Background="#2EA6FF" Foreground="White" BorderThickness="0" CornerRadius="17"
+                                Click="Send_Click" ToolTip.Tip="Отправить"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Строка статуса -->
+        <Border Grid.Row="1" Background="#111922" Padding="10,4">
+            <TextBlock x:Name="StatusLabel" Text="Готово" FontSize="11" Foreground="#7F8C99"/>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TgMini.Desktop.SetupWindow"
+        Title="TG Mini — Первый запуск" Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" Background="#0B0E13"
+        CanResize="False">
+    <StackPanel Margin="20" Spacing="8">
+        <TextBlock Text="Настройка Telegram API" FontSize="16" FontWeight="Bold" Foreground="#E8ECF1" Margin="0,0,0,4"/>
+        <TextBlock Foreground="#8B949E" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
+                   Text="Для работы нужны ключи api_id и api_hash. Их можно бесплатно получить за 1 минуту на сайте https://my.telegram.org (раздел API development tools)."/>
+
+        <TextBlock Text="API ID:" Foreground="#E8ECF1" FontSize="12"/>
+        <TextBox x:Name="ApiIdBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13"/>
+
+        <TextBlock Text="API Hash:" Foreground="#E8ECF1" FontSize="12"/>
+        <TextBox x:Name="ApiHashBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13"/>
+
+        <TextBlock Text="Номер телефона (например +380... / +7...):" Foreground="#E8ECF1" FontSize="12"/>
+        <TextBox x:Name="PhoneBox" Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="8,6" FontSize="13"/>
+
+        <TextBlock x:Name="ErrorLabel" Foreground="#FF5C7A" FontSize="11" IsVisible="False"/>
+
+        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,12,0,0">
+            <Button Content="Сохранить и продолжить" Height="36" Click="Save_Click"
+                    Background="#2EA6FF" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="16,0"/>
+            <Button Content="Войти через QR" Height="36" Click="QrButton_Click"
+                    Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0" Padding="16,0"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
