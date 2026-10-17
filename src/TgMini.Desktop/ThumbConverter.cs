@@ -52,6 +52,7 @@ public sealed class ThumbConverter : IValueConverter
             {
                 if (_cache.TryGetValue(key, out var existing))
                 {
+                    try { bmp.Dispose(); } catch { }
                     return existing.Bmp;
                 }
 
