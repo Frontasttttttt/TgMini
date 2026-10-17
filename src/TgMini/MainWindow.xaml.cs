@@ -166,6 +166,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ApplyAppIcon();
         DialogList.ItemsSource = _rows;
         FeedList.ItemsSource = _feed;
         Loaded += async (_, _) =>
@@ -173,6 +174,26 @@ public partial class MainWindow : Window
             InitTray();
             await StartAsync();
         };
+    }
+
+    private void ApplyAppIcon()
+    {
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+            {
+                using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                if (icon != null)
+                {
+                    Icon = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                        icon.Handle,
+                        Int32Rect.Empty,
+                        System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                }
+            }
+        }
+        catch { /* ignore */ }
     }
 
     private void InitTray()

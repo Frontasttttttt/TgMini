@@ -96,6 +96,13 @@ public partial class App : Application
     private void OnUi(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Log("ui: " + e.Exception);
+        if (MainWindow == null || !MainWindow.IsLoaded)
+        {
+            MessageBox.Show($"Ошибка запуска TG Mini:\n\n{e.Exception.Message}\n\nПодробности в crash.log",
+                "TG Mini", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+            return;
+        }
         e.Handled = true;      // не роняем окно из-за одной ошибки
     }
 
