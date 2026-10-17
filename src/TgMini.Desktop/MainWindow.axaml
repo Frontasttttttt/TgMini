@@ -5,7 +5,6 @@
         Title="TG Mini" Width="820" Height="580" MinWidth="360" MinHeight="360"
         Background="#0E1621"
         Icon="/Assets/icon.png"
-        FontFamily="Inter, Noto Color Emoji, Noto Emoji, Twitter Color Emoji, Apple Color Emoji, Segoe UI Emoji, DejaVu Sans, Symbola, sans-serif"
         WindowStartupLocation="CenterScreen">
 
     <Grid RowDefinitions="*,Auto">

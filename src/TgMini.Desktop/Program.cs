@@ -16,7 +16,6 @@ internal static class Program
             .WithInterFont()
             .With(new FontManagerOptions
             {
-                DefaultFamilyName = "Inter",
                 FontFallbacks = new[]
                 {
                     new FontFallback { FontFamily = new FontFamily("Noto Color Emoji") },

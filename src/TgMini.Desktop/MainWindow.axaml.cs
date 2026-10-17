@@ -91,7 +91,6 @@ public partial class MainWindow : Window
             if (!_trimmedForCurrentIdle && DateTime.UtcNow - _lastUserActivity >= TimeSpan.FromSeconds(30))
             {
                 _trimmedForCurrentIdle = true;
-                ThumbConverter.ClearCache();
                 MemoryHelper.TrimWorkingSetAsync(full: true);
             }
         };

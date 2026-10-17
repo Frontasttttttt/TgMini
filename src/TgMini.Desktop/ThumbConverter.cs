@@ -19,10 +19,6 @@ public sealed class ThumbConverter : IValueConverter
     {
         lock (_lock)
         {
-            foreach (var item in _cache.Values)
-            {
-                try { item.Bmp.Dispose(); } catch { }
-            }
             _cache.Clear();
             _lruList.Clear();
         }
@@ -56,7 +52,6 @@ public sealed class ThumbConverter : IValueConverter
             {
                 if (_cache.TryGetValue(key, out var existing))
                 {
-                    bmp.Dispose();
                     return existing.Bmp;
                 }
 
@@ -66,10 +61,7 @@ public sealed class ThumbConverter : IValueConverter
                     if (oldest != null)
                     {
                         _lruList.RemoveLast();
-                        if (_cache.Remove(oldest.Value, out var evicted))
-                        {
-                            try { evicted.Bmp.Dispose(); } catch { }
-                        }
+                        _cache.Remove(oldest.Value);
                     }
                 }
 
