@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TgMini.Core\TgMini.Core.csproj" />
     <EmbeddedResource Include="din-iphone.mp3" />
+    <Resource Include="app.ico" />
   </ItemGroup>
 
   <PropertyGroup>
