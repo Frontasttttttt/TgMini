@@ -7,6 +7,7 @@
     <StackPanel Margin="18" Spacing="10">
         <TextBlock x:Name="PromptText" Foreground="#E8ECF1" FontSize="13" TextWrapping="Wrap"
                    Text="Введите код из Telegram"/>
+        <TextBlock x:Name="ErrorText" Foreground="#FF5C7A" FontSize="12" TextWrapping="Wrap" IsVisible="False"/>
         <TextBox x:Name="ValueBox" Padding="10,8" FontSize="15"
                  Background="#1A2230" Foreground="#E8ECF1" BorderThickness="0"
                  CornerRadius="6" KeyDown="ValueBox_KeyDown"/>

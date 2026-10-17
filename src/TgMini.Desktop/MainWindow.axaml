@@ -189,7 +189,12 @@
 
         <!-- Строка статуса -->
         <Border Grid.Row="1" Background="#111922" Padding="10,4">
-            <TextBlock x:Name="StatusLabel" Text="Готово" FontSize="11" Foreground="#7F8C99"/>
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" x:Name="StatusLabel" Text="Готово" FontSize="11" Foreground="#7F8C99" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" x:Name="ReloginBtn" Content="Войти заново" FontSize="11"
+                        Background="Transparent" Foreground="#2EA6FF" BorderThickness="0" Padding="8,2"
+                        Cursor="Hand" Click="Relogin_Click" IsVisible="False"/>
+            </Grid>
         </Border>
     </Grid>
 </Window>

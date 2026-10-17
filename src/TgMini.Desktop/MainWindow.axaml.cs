@@ -93,8 +93,32 @@ public partial class MainWindow : Window
 
     private void Status(string s) => Dispatcher.UIThread.Invoke(() => StatusLabel.Text = s);
 
+    private int _passwordAttempts;
+
+    private static string FormatTelegramError(string error)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(error, @"FLOOD_WAIT_(\d+)");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var seconds))
+        {
+            var span = TimeSpan.FromSeconds(seconds);
+            if (span.TotalHours >= 1)
+                return $"Telegram временно ограничил вход (FLOOD_WAIT). Подождите {(int)span.TotalHours} ч {span.Minutes} мин.";
+            if (span.TotalMinutes >= 1)
+                return $"Telegram временно ограничил вход (FLOOD_WAIT). Подождите {(int)span.TotalMinutes} мин {span.Seconds} сек.";
+            return $"Подождите {seconds} сек. перед повторной попыткой (FLOOD_WAIT).";
+        }
+        if (error.Contains("AUTH_KEY_UNREGISTERED") || error.Contains("SESSION_REVOKED"))
+            return "Сессия Telegram была завершена или отозвана.";
+        if (error.Contains("PASSWORD_HASH_INVALID"))
+            return "Неверный двухфакторный пароль (2FA).";
+        return error;
+    }
+
     private async Task StartAsync()
     {
+        ReloginBtn.IsVisible = false;
+        _passwordAttempts = 0;
+
         if (Environment.GetEnvironmentVariable("TGMINI_NO_CONNECT") == "1")
         {
             Status("UI-режим без подключения (TGMINI_NO_CONNECT=1)");
@@ -122,7 +146,7 @@ public partial class MainWindow : Window
                 if (!ok)
                 {
                     Status("QR-вход отменён или прерван.");
-                    return;
+                    ReloginBtn.IsVisible = true;
                 }
                 return;
             }
@@ -134,12 +158,34 @@ public partial class MainWindow : Window
         }
         catch (Exception e)
         {
-            Status($"Ошибка Telegram: {e.Message}");
+            var msg = FormatTelegramError(e.Message);
+            ReloginBtn.IsVisible = true;
+            if (e.Message.Contains("AUTH_KEY_UNREGISTERED") || e.Message.Contains("SESSION_REVOKED"))
+            {
+                Status($"Сессия недействительна ({msg}). Открываю повторный вход...");
+                bridge.ResetSession();
+                await QrLoginAsync(bridge);
+            }
+            else
+            {
+                Status($"Ошибка Telegram: {msg}");
+            }
         }
+    }
+
+    private async void Relogin_Click(object? sender, RoutedEventArgs e)
+    {
+        ReloginBtn.IsVisible = false;
+        if (_bridge is not null)
+        {
+            _bridge.ResetSession();
+        }
+        await StartAsync();
     }
 
     private async Task<bool> QrLoginAsync(WTelegramBridge bridge)
     {
+        _passwordAttempts = 0;
         var qr = new QrWindow();
         qr.Show(this);
 
@@ -164,35 +210,79 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            qr.Finish(false, $"Ошибка: {ex.Message}");
+            var formatted = FormatTelegramError(ex.Message);
+            qr.Finish(false, $"Ошибка: {formatted}");
+            Status($"Ошибка входа: {formatted}");
             return false;
         }
     }
 
     private string? AskPrompt(string what)
     {
-        var tcs = new TaskCompletionSource<string?>();
-        Dispatcher.UIThread.Post(async () =>
+        string? err = null;
+        if (what == "password")
         {
+            _passwordAttempts++;
+            if (_passwordAttempts > 3)
+            {
+                Status("Слишком много неверных попыток ввода пароля (3). Вход остановлен во избежание блокировки.");
+                return null;
+            }
+            if (_passwordAttempts > 1)
+            {
+                err = $"Неверный пароль 2FA! Попытка {_passwordAttempts} из 3.";
+            }
+        }
+
+        var tcs = new TaskCompletionSource<string?>();
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            var frame = new DispatcherFrame();
+            Dispatcher.UIThread.Post(async () =>
+            {
+                try
+                {
+                    var dialog = new VerificationWindow(what, err);
+                    var res = await dialog.ShowDialog<bool>(this);
+                    tcs.TrySetResult(res && !string.IsNullOrEmpty(dialog.Value) ? dialog.Value : null);
+                }
+                catch
+                {
+                    tcs.TrySetResult(null);
+                }
+                finally
+                {
+                    frame.Continue = false;
+                }
+            });
+            Dispatcher.UIThread.PushFrame(frame);
+            return tcs.Task.GetAwaiter().GetResult();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(async () =>
+            {
+                try
+                {
+                    var dialog = new VerificationWindow(what, err);
+                    var res = await dialog.ShowDialog<bool>(this);
+                    tcs.TrySetResult(res && !string.IsNullOrEmpty(dialog.Value) ? dialog.Value : null);
+                }
+                catch
+                {
+                    tcs.TrySetResult(null);
+                }
+            });
+
             try
             {
-                var dialog = new VerificationWindow(what);
-                var res = await dialog.ShowDialog<bool>(this);
-                tcs.TrySetResult(res && !string.IsNullOrEmpty(dialog.Value) ? dialog.Value : null);
+                return tcs.Task.GetAwaiter().GetResult();
             }
             catch
             {
-                tcs.TrySetResult(null);
+                return null;
             }
-        });
-
-        try
-        {
-            return tcs.Task.GetAwaiter().GetResult();
-        }
-        catch
-        {
-            return null;
         }
     }
 

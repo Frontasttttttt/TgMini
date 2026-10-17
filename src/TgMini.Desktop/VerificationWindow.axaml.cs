@@ -8,9 +8,9 @@ public partial class VerificationWindow : Window
 {
     public string Value => ValueBox.Text?.Trim() ?? "";
 
-    public VerificationWindow() : this("verification_code") { }
+    public VerificationWindow() : this("verification_code", null) { }
 
-    public VerificationWindow(string what)
+    public VerificationWindow(string what, string? error = null)
     {
         InitializeComponent();
         PromptText.Text = what switch
@@ -21,6 +21,12 @@ public partial class VerificationWindow : Window
             "email" => "Email для кода подтверждения (можно оставить пустой):",
             _ => "Введите код подтверждения Telegram:"
         };
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            ErrorText.Text = error;
+            ErrorText.IsVisible = true;
+        }
 
         if (what == "password")
         {
