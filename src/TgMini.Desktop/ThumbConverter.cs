@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
 using Avalonia.Data.Converters;
@@ -9,6 +10,12 @@ namespace TgMini.Desktop;
 public sealed class ThumbConverter : IValueConverter
 {
     public static readonly ThumbConverter Instance = new();
+    private static readonly ConcurrentDictionary<string, Bitmap> _cache = new();
+
+    public static void ClearCache()
+    {
+        _cache.Clear();
+    }
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -19,10 +26,16 @@ public sealed class ThumbConverter : IValueConverter
         if (parameter is int w) width = w;
         else if (parameter is string s && int.TryParse(s, out var pw)) width = pw;
 
+        var key = $"{path}_{width}";
+        if (_cache.TryGetValue(key, out var cached))
+            return cached;
+
         try
         {
             using var stream = File.OpenRead(path);
-            return Bitmap.DecodeToWidth(stream, width);
+            var bmp = Bitmap.DecodeToWidth(stream, width);
+            _cache[key] = bmp;
+            return bmp;
         }
         catch
         {

@@ -6,6 +6,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         Title="TG Mini" Height="640" Width="900" MinWidth="360" MinHeight="360"
         FontFamily="Segoe UI Emoji, Segoe UI"
+        Icon="app.ico"
         Background="#0B0E13" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <local:ThumbConverter x:Key="ThumbConv"/>

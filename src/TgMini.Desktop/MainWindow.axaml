@@ -4,6 +4,7 @@
         x:Class="TgMini.Desktop.MainWindow"
         Title="TG Mini" Width="820" Height="580" MinWidth="360" MinHeight="360"
         Background="#0E1621"
+        Icon="/Assets/icon.png"
         WindowStartupLocation="CenterScreen">
 
     <Grid RowDefinitions="*,Auto">

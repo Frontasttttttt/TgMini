@@ -68,6 +68,11 @@ public partial class MainWindow : Window
                 MemoryHelper.TrimWorkingSet();
             }
         };
+
+        // Автоматический периодический сброс памяти (malloc_trim / GC) каждые 30 секунд в простое
+        var trimTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        trimTimer.Tick += (_, _) => MemoryHelper.TrimWorkingSet();
+        trimTimer.Start();
     }
 
     private static string GetInitials(string name)

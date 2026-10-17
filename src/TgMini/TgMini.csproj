@@ -10,8 +10,11 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <UseWPF>true</UseWPF>
-    <!-- меньше RAM, быстрый старт. Без InvariantGlobalization: WPF нужен русский/IME -->
+    <!-- меньше RAM, быстрый старт -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <GCConserveMemory>9</GCConserveMemory>
     <TieredPGO>true</TieredPGO>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
@@ -19,8 +22,8 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <Version>1.0.7</Version>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <Version>1.0.6</Version>
   </PropertyGroup>
 
 </Project>
