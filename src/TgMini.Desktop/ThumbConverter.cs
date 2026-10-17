@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using Avalonia.Data.Converters;
@@ -10,11 +10,22 @@ namespace TgMini.Desktop;
 public sealed class ThumbConverter : IValueConverter
 {
     public static readonly ThumbConverter Instance = new();
-    private static readonly ConcurrentDictionary<string, Bitmap> _cache = new();
+    private const int MaxCapacity = 96;
+    private static readonly object _lock = new();
+    private static readonly Dictionary<string, (LinkedListNode<string> Node, Bitmap Bmp)> _cache = new();
+    private static readonly LinkedList<string> _lruList = new();
 
     public static void ClearCache()
     {
-        _cache.Clear();
+        lock (_lock)
+        {
+            foreach (var item in _cache.Values)
+            {
+                try { item.Bmp.Dispose(); } catch { }
+            }
+            _cache.Clear();
+            _lruList.Clear();
+        }
     }
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -27,14 +38,45 @@ public sealed class ThumbConverter : IValueConverter
         else if (parameter is string s && int.TryParse(s, out var pw)) width = pw;
 
         var key = $"{path}_{width}";
-        if (_cache.TryGetValue(key, out var cached))
-            return cached;
+        lock (_lock)
+        {
+            if (_cache.TryGetValue(key, out var entry))
+            {
+                _lruList.Remove(entry.Node);
+                _lruList.AddFirst(entry.Node);
+                return entry.Bmp;
+            }
+        }
 
         try
         {
             using var stream = File.OpenRead(path);
             var bmp = Bitmap.DecodeToWidth(stream, width);
-            _cache[key] = bmp;
+            lock (_lock)
+            {
+                if (_cache.TryGetValue(key, out var existing))
+                {
+                    bmp.Dispose();
+                    return existing.Bmp;
+                }
+
+                if (_cache.Count >= MaxCapacity)
+                {
+                    var oldest = _lruList.Last;
+                    if (oldest != null)
+                    {
+                        _lruList.RemoveLast();
+                        if (_cache.Remove(oldest.Value, out var evicted))
+                        {
+                            try { evicted.Bmp.Dispose(); } catch { }
+                        }
+                    }
+                }
+
+                var node = new LinkedListNode<string>(key);
+                _lruList.AddFirst(node);
+                _cache[key] = (node, bmp);
+            }
             return bmp;
         }
         catch

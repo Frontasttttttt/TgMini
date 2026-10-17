@@ -50,6 +50,15 @@ public partial class MainWindow : Window
     private bool _isLoadingHistory;
     private bool _isCompact;
 
+    private DateTime _lastUserActivity = DateTime.UtcNow;
+    private bool _trimmedForCurrentIdle;
+
+    private void RecordActivity()
+    {
+        _lastUserActivity = DateTime.UtcNow;
+        _trimmedForCurrentIdle = false;
+    }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -57,7 +66,11 @@ public partial class MainWindow : Window
         FeedList.ItemsSource = _feed;
 
         DialogList.SelectionChanged += DialogList_SelectionChanged;
-        SearchBox.TextChanged += (_, _) => PaintDialogs();
+        SearchBox.TextChanged += (_, _) => { RecordActivity(); PaintDialogs(); };
+
+        AddHandler(InputElement.PointerMovedEvent, (_, _) => RecordActivity(), RoutingStrategies.Tunnel);
+        AddHandler(InputElement.KeyDownEvent, (_, _) => RecordActivity(), RoutingStrategies.Tunnel);
+        AddHandler(InputElement.PointerPressedEvent, (_, _) => RecordActivity(), RoutingStrategies.Tunnel);
 
         Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => { try { _bridge?.Dispose(); } catch { } };
@@ -65,14 +78,24 @@ public partial class MainWindow : Window
         {
             if (e.Property.Name == nameof(WindowState) && WindowState == WindowState.Minimized)
             {
-                MemoryHelper.TrimWorkingSet();
+                ThumbConverter.ClearCache();
+                MemoryHelper.TrimWorkingSetAsync(full: true);
             }
         };
 
-        // Автоматический периодический сброс памяти (malloc_trim / GC) каждые 30 секунд в простое
-        var trimTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        trimTimer.Tick += (_, _) => MemoryHelper.TrimWorkingSet();
-        trimTimer.Start();
+        // Периодическая проверка простоя: если пользователь неактивен 30 секунд,
+        // производим однократную очистку кэша аватарок и фоновый неблокирующий сброс памяти
+        var idleCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        idleCheckTimer.Tick += (_, _) =>
+        {
+            if (!_trimmedForCurrentIdle && DateTime.UtcNow - _lastUserActivity >= TimeSpan.FromSeconds(30))
+            {
+                _trimmedForCurrentIdle = true;
+                ThumbConverter.ClearCache();
+                MemoryHelper.TrimWorkingSetAsync(full: true);
+            }
+        };
+        idleCheckTimer.Start();
     }
 
     private static string GetInitials(string name)
@@ -511,9 +534,11 @@ public partial class MainWindow : Window
     private async void DialogList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (DialogList.SelectedItem is not DialogRow r) return;
+        RecordActivity();
         _feed.Clear();
         _byId.Clear();
-        MemoryHelper.TrimWorkingSet();
+        ThumbConverter.ClearCache();
+        MemoryHelper.TrimWorkingSetAsync(full: false);
 
         _peer = r.Id;
         _peerName = r.Name;
