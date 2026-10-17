@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -59,6 +60,7 @@ public partial class MainWindow : Window
         SearchBox.TextChanged += (_, _) => PaintDialogs();
 
         Loaded += async (_, _) => await StartAsync();
+        Closed += (_, _) => { try { _bridge?.Dispose(); } catch { } };
         PropertyChanged += (_, e) =>
         {
             if (e.Property.Name == nameof(WindowState) && WindowState == WindowState.Minimized)
@@ -117,7 +119,7 @@ public partial class MainWindow : Window
     private async Task StartAsync()
     {
         ReloginBtn.IsVisible = false;
-        _passwordAttempts = 0;
+        Interlocked.Exchange(ref _passwordAttempts, 0);
 
         if (Environment.GetEnvironmentVariable("TGMINI_NO_CONNECT") == "1")
         {
@@ -129,6 +131,13 @@ public partial class MainWindow : Window
         {
             var setup = new SetupWindow(_cfg);
             await setup.ShowDialog(this);
+        }
+
+        // Диспоузим предыдущий мост, чтобы закрыть старый Client, сокеты и отпустить файл сессии
+        if (_bridge is not null)
+        {
+            try { _bridge.Dispose(); } catch { }
+            _bridge = null;
         }
 
         Status("Подключаюсь к Telegram...");
@@ -145,7 +154,6 @@ public partial class MainWindow : Window
                 var ok = await QrLoginAsync(bridge);
                 if (!ok)
                 {
-                    Status("QR-вход отменён или прерван.");
                     ReloginBtn.IsVisible = true;
                 }
                 return;
@@ -159,16 +167,18 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             var msg = FormatTelegramError(e.Message);
-            ReloginBtn.IsVisible = true;
             if (e.Message.Contains("AUTH_KEY_UNREGISTERED") || e.Message.Contains("SESSION_REVOKED"))
             {
                 Status($"Сессия недействительна ({msg}). Открываю повторный вход...");
+                try { bridge.Dispose(); } catch { }
                 bridge.ResetSession();
-                await QrLoginAsync(bridge);
+                var ok = await QrLoginAsync(bridge);
+                ReloginBtn.IsVisible = !ok;
             }
             else
             {
                 Status($"Ошибка Telegram: {msg}");
+                ReloginBtn.IsVisible = true;
             }
         }
     }
@@ -178,14 +188,16 @@ public partial class MainWindow : Window
         ReloginBtn.IsVisible = false;
         if (_bridge is not null)
         {
+            try { _bridge.Dispose(); } catch { }
             _bridge.ResetSession();
+            _bridge = null;
         }
         await StartAsync();
     }
 
     private async Task<bool> QrLoginAsync(WTelegramBridge bridge)
     {
-        _passwordAttempts = 0;
+        Interlocked.Exchange(ref _passwordAttempts, 0);
         var qr = new QrWindow();
         qr.Show(this);
 
@@ -200,11 +212,13 @@ public partial class MainWindow : Window
                 qr.Finish(true, "Вход успешен!");
                 await RefreshAsync();
                 Status($"Вход выполнен. Чатов: {_all.Count}");
+                ReloginBtn.IsVisible = false;
                 return true;
             }
             else
             {
                 qr.Finish(false, "QR отменён.");
+                Status("QR-вход отменён.");
                 return false;
             }
         }
@@ -222,15 +236,15 @@ public partial class MainWindow : Window
         string? err = null;
         if (what == "password")
         {
-            _passwordAttempts++;
-            if (_passwordAttempts > 3)
+            var attempts = Interlocked.Increment(ref _passwordAttempts);
+            if (attempts > 3)
             {
                 Status("Слишком много неверных попыток ввода пароля (3). Вход остановлен во избежание блокировки.");
                 return null;
             }
-            if (_passwordAttempts > 1)
+            if (attempts > 1)
             {
-                err = $"Неверный пароль 2FA! Попытка {_passwordAttempts} из 3.";
+                err = $"Неверный пароль 2FA! Попытка {attempts} из 3.";
             }
         }
 

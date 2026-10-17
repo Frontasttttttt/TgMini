@@ -46,6 +46,8 @@ public sealed class WTelegramBridge : IBridge
 
     public void ResetSession()
     {
+        try { _c?.Dispose(); } catch { /* ignore */ }
+        _c = null;
         try { File.Delete(_sessionPath + ".auth"); } catch { }
         try { File.Delete(_sessionPath); } catch { }
     }
