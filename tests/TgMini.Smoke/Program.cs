@@ -1,4 +1,4 @@
-﻿// Смок-тест портированной логики — зеркалит проверки Python-прототипа:
+// Смок-тест портированной логики — зеркалит проверки Python-прототипа:
 // папки Personal(34)/Study(13)/Unread(1), скролл-правила, DND, TTL не нужен.
 // Выход 0 = всё сошлось с эталоном.
 using TgMini.Core;
@@ -56,7 +56,7 @@ MediaCache.Ensure();
 MediaCache.Cleanup();
 
 // missed.db: log/unseen/markSeen (порт missed_store.py)
-var dbPath = Path.Combine(Path.GetTempPath(), "tgmini_smoke.db");
+var dbPath = Path.Combine(Path.GetTempPath(), $"tgmini_smoke_{Guid.NewGuid():N}.db");
 try { File.Delete(dbPath); } catch { }
 using (var s2_ = new MissedStore(dbPath))
 {
@@ -68,6 +68,7 @@ using (var s2_ = new MissedStore(dbPath))
     s2_.MarkSeen();
     if (s2_.UnseenCount() != 0) return Fail("markseen");
     Console.WriteLine("missed.db: log/unseen/markseen ok");
+    try { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); } catch { }
 }
 
 // конфиг: читаем реальные ключи Python-прототипа (fallback на telegram-overlay/config.toml)

@@ -72,6 +72,16 @@ public partial class MainWindow : Window
         AddHandler(InputElement.KeyDownEvent, (_, _) => RecordActivity(), RoutingStrategies.Tunnel);
         AddHandler(InputElement.PointerPressedEvent, (_, _) => RecordActivity(), RoutingStrategies.Tunnel);
 
+        FeedScroll.PropertyChanged += (s, e) =>
+        {
+            if (e.Property.Name == nameof(ScrollViewer.Offset))
+            {
+                var sv = FeedScroll;
+                bool isNearBottom = sv.Offset.Y >= (sv.Extent.Height - sv.Viewport.Height - 120);
+                ScrollDownBtn.IsVisible = !isNearBottom && _feed.Count > 5;
+            }
+        };
+
         Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => { try { _bridge?.Dispose(); } catch { } };
         PropertyChanged += (_, e) =>
@@ -327,6 +337,44 @@ public partial class MainWindow : Window
         }
     }
 
+    private void UpdateHeaderAvatar(DialogRow r)
+    {
+        try
+        {
+            HeaderAvatar.IsVisible = true;
+            HeaderAvatarInitials.Text = r.Initials;
+            HeaderAvatarBg.Background = new SolidColorBrush(Color.Parse(r.AvatarColor));
+            if (r.AvatarVisible && !string.IsNullOrEmpty(r.AvatarPath))
+            {
+                var bmp = ThumbConverter.Instance.Convert(r.AvatarPath, typeof(Avalonia.Media.IImage), 48, System.Globalization.CultureInfo.InvariantCulture) as Avalonia.Media.IImage;
+                if (bmp != null)
+                {
+                    HeaderAvatarPhoto.Source = bmp;
+                    HeaderAvatarPhoto.IsVisible = true;
+                    return;
+                }
+            }
+            HeaderAvatarPhoto.IsVisible = false;
+        }
+        catch
+        {
+            HeaderAvatarPhoto.IsVisible = false;
+        }
+    }
+
+    private void ScrollDownBtn_Click(object? sender, RoutedEventArgs e)
+    {
+        RecordActivity();
+        FeedScroll.ScrollToEnd();
+        ScrollDownBtn.IsVisible = false;
+    }
+
+    private void SearchClearBtn_Click(object? sender, RoutedEventArgs e)
+    {
+        RecordActivity();
+        SearchBox.Text = "";
+    }
+
     private void OnLiveMessage(IncomingMessage m)
     {
         Dispatcher.UIThread.Invoke(() =>
@@ -341,6 +389,7 @@ public partial class MainWindow : Window
                 {
                     row.Preview = m.Text;
                     row.Unread = unread;
+                    row.Time = TimeFormatter.FormatDialogTime(m.Date);
                 }
             }
 
@@ -399,11 +448,11 @@ public partial class MainWindow : Window
     {
         var b = new Button
         {
-            Content = new TextBlock { Text = title, FontSize = 11 },
+            Content = new TextBlock { Text = title, FontSize = 11, FontWeight = FontWeight.SemiBold },
             Foreground = Brushes.White,
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(9, 3, 9, 3),
-            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10, 4, 10, 4),
+            CornerRadius = new CornerRadius(11),
             Cursor = new Cursor(StandardCursorType.Hand)
         };
         b.Click += (_, _) => SelectFolder(key);
@@ -422,10 +471,12 @@ public partial class MainWindow : Window
     private void UpdateFolderButtonsVisual()
     {
         var activeBrush = new SolidColorBrush(Color.Parse("#2EA6FF"));
-        var inactiveBrush = new SolidColorBrush(Color.Parse("#242F3D"));
+        var inactiveBrush = new SolidColorBrush(Color.Parse("#1E2936"));
+        var inactiveText = new SolidColorBrush(Color.Parse("#708499"));
         foreach (var (k, b) in _folderButtons)
         {
             b.Background = k == _folder ? activeBrush : inactiveBrush;
+            b.Foreground = k == _folder ? Brushes.White : inactiveText;
         }
     }
 
@@ -454,7 +505,9 @@ public partial class MainWindow : Window
                 AvatarColor = GetAvatarColor(d.Name),
                 Preview = d.LastMessage,
                 Unread = d.Unread,
-                IsPinned = d.IsPinned
+                IsPinned = d.IsPinned,
+                Time = TimeFormatter.FormatDialogTime(d.Date),
+                IsMuted = d.Muted
             };
             _rowCache[d.Id] = row;
         }
@@ -463,6 +516,8 @@ public partial class MainWindow : Window
             row.Preview = d.LastMessage;
             row.Unread = d.Unread;
             row.IsPinned = d.IsPinned;
+            row.Time = TimeFormatter.FormatDialogTime(d.Date);
+            row.IsMuted = d.Muted;
         }
 
         if (string.IsNullOrEmpty(row.AvatarPath))
@@ -497,6 +552,10 @@ public partial class MainWindow : Window
     private void PaintDialogs()
     {
         var q = SearchBox.Text?.Trim().ToLowerInvariant() ?? "";
+        if (SearchClearBtn is not null)
+        {
+            SearchClearBtn.IsVisible = !string.IsNullOrEmpty(SearchBox.Text);
+        }
         var flt = CurrentFolder();
         var target = new List<DialogRow>(capacity: 60);
 
@@ -545,6 +604,7 @@ public partial class MainWindow : Window
         ChatSub.Text = "";
         _replyTo = 0;
         ReplyBar.IsVisible = false;
+        UpdateHeaderAvatar(r);
 
         var d = _all.FirstOrDefault(x => x.Id == _peer);
         if (d is not null && d.Unread > 0)
@@ -653,16 +713,24 @@ public partial class MainWindow : Window
     {
         _byId = msgs.GroupBy(m => m.Id).ToDictionary(g => g.Key, g => g.Last());
         _feed.Clear();
+        DateTime? lastDate = null;
         foreach (var m in msgs)
         {
-            var row = ToRow(m);
+            var msgDate = m.Date?.ToLocalTime().Date;
+            string dateSep = "";
+            if (msgDate.HasValue && msgDate != lastDate)
+            {
+                dateSep = TimeFormatter.FormatDateSeparator(m.Date);
+                lastDate = msgDate;
+            }
+            var row = ToRow(m, dateSep);
             _feed.Add(row);
             EnsureMediaThumb(row, m);
         }
         FeedScroll.ScrollToEnd();
     }
 
-    private static MsgRow ToRow(MessageInfo m)
+    private static MsgRow ToRow(MessageInfo m, string dateSeparator = "")
     {
         string hint;
         if (m.Kind is MediaKind.Photo or MediaKind.Sticker or MediaKind.Gif)
@@ -690,11 +758,12 @@ public partial class MainWindow : Window
             AuthorColor = AuthorColors[(m.Author.GetHashCode() & 0x7FFFFFFF) % AuthorColors.Length],
             Quote = m.ReplyTo > 0 ? $"↩ Ответ на #{m.ReplyTo}" : "",
             MediaHint = hint,
-            Bubble = m.Out ? "#1C3A5E" : "#1A2230",
+            Bubble = m.Out ? "#2B5278" : "#182533",
             Align = m.Out ? "Right" : "Left",
             Time = m.Date?.ToLocalTime().ToString("HH:mm") ?? "",
             Out = m.Out,
-            HasMedia = m.Kind != MediaKind.Text
+            HasMedia = m.Kind != MediaKind.Text,
+            DateSeparator = dateSeparator
         };
     }
 

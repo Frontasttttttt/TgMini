@@ -4,14 +4,15 @@
         xmlns:local="clr-namespace:TgMini"
         mc:Ignorable="d" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        Title="TG Mini" Height="640" Width="900" MinWidth="360" MinHeight="360"
+        Title="TG Mini" Height="640" Width="900" MinWidth="420" MinHeight="380"
         FontFamily="Segoe UI Emoji, Segoe UI"
-        Background="#0B0E13" WindowStartupLocation="CenterScreen">
+        Background="#0E1621" WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <local:ThumbConverter x:Key="ThumbConv"/>
+
         <Style TargetType="Button" x:Key="GhostBtn">
-            <Setter Property="Background" Value="#1A2230"/>
-            <Setter Property="Foreground" Value="#E8ECF1"/>
+            <Setter Property="Background" Value="#242F3D"/>
+            <Setter Property="Foreground" Value="#F5F5F5"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -27,28 +28,173 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#202A3D"/>
+                    <Setter Property="Background" Value="#2B394A"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style TargetType="TextBox" x:Key="DarkBox">
-            <Setter Property="Background" Value="#1A2230"/>
-            <Setter Property="Foreground" Value="#E8ECF1"/>
+
+        <Style TargetType="Button" x:Key="CircleGhostBtn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#708499"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="17" Width="34" Height="34">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#242F3D"/>
+                                <Setter Property="Foreground" Value="#2EA6FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button" x:Key="CircleAccentBtn">
+            <Setter Property="Background" Value="#2EA6FF"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="17" Width="34" Height="34">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1B96ED"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1680CA"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button" x:Key="FloatingBtn">
+            <Setter Property="Background" Value="#1E2C3A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#2B3E52"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="18" Width="36" Height="36">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="8" ShadowDepth="2" Direction="270" Opacity="0.4" Color="Black"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#26384A"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#2EA6FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button" x:Key="MiniGhostBtn">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#708499"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#242F3D"/>
+                                <Setter Property="Foreground" Value="#F5F5F5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button" x:Key="FolderBtn">
+            <Setter Property="Background" Value="#1E2936"/>
+            <Setter Property="Foreground" Value="#708499"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="11"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#283647"/>
+                                <Setter Property="Foreground" Value="#F5F5F5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox" x:Key="SeamlessBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#F5F5F5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CaretBrush" Value="#2EA6FF"/>
+            <Setter Property="SelectionBrush" Value="#2EA6FF"/>
             <Setter Property="FontSize" Value="13"/>
         </Style>
+
+        <Style TargetType="ListBoxItem" x:Key="DialogListItemStyle">
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Margin" Value="4,1"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1E2936"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#243343"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Шаблон строки диалога -->
         <DataTemplate x:Key="DialogRowTpl">
-            <Grid Margin="2,4">
+            <Grid Margin="4,3">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition Width="42"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <!-- Круглая аватарка с инициалами или фото -->
-                <Grid Grid.Column="0" Width="34" Height="34" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <Grid Grid.Column="0" Width="38" Height="38" HorizontalAlignment="Left" VerticalAlignment="Center">
                     <Ellipse Fill="{Binding AvatarColor}"/>
-                    <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="12" FontWeight="Bold"
+                    <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="13" FontWeight="Bold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     <Ellipse Visibility="{Binding AvatarVisible}">
                         <Ellipse.Fill>
@@ -56,74 +202,143 @@
                         </Ellipse.Fill>
                     </Ellipse>
                 </Grid>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
-                    <TextBlock Text="{Binding Name}" FontSize="13" Foreground="#E8ECF1"
+                <!-- Правая колонка: Имя, Время, Превью, Бейдж, Мут, Закреп -->
+                <Grid Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Имя диалога -->
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Name}" FontSize="13" Foreground="#F5F5F5"
                                FontWeight="{Binding NameWeight}" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding Preview}" FontSize="11" Foreground="#8B949E"
-                               TextTrimming="CharacterEllipsis"/>
-                </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="📌" FontSize="11" Foreground="#8B949E" Margin="0,0,4,0"
-                               Visibility="{Binding PinnedVisible}"/>
-                    <Border Background="#2EA6FF" CornerRadius="8" Padding="7,1"
-                            VerticalAlignment="Center" Visibility="{Binding BadgeVisible}">
-                        <TextBlock Text="{Binding Unread}" Foreground="White" FontSize="11" FontWeight="Bold"/>
-                    </Border>
-                </StackPanel>
+                    <!-- Время последнего сообщения -->
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Time}" FontSize="11" Foreground="#708499"
+                               Margin="4,0,0,0"/>
+
+                    <!-- Превью последнего сообщения -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Preview}" FontSize="12" Foreground="#7F8C99"
+                               TextTrimming="CharacterEllipsis" Margin="0,3,4,0"/>
+
+                    <!-- Иконки: Закреп, Мут, Бейдж -->
+                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,3,0,0">
+                        <TextBlock Text="🔇" FontSize="10" Foreground="#708499" Margin="0,0,4,0"
+                                   Visibility="{Binding MutedVisible}"/>
+                        <TextBlock Text="📌" FontSize="11" Foreground="#2EA6FF" Margin="0,0,4,0"
+                                   Visibility="{Binding PinnedVisible}"/>
+                        <Border Background="{Binding BadgeBackground}" CornerRadius="9" MinWidth="18" Height="18" Padding="5,0"
+                                VerticalAlignment="Center" Visibility="{Binding BadgeVisible}">
+                            <TextBlock Text="{Binding Unread}" Foreground="White" FontSize="10" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </DataTemplate>
+
+        <!-- Шаблон строки сообщения -->
         <DataTemplate x:Key="MsgRowTpl">
-            <Border Background="{Binding Bubble}" CornerRadius="10" Padding="10,7" Margin="4,2"
-                    HorizontalAlignment="{Binding Align}">
-                <Border.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Header="↩ Ответить" Click="MsgMenuReply_Click"/>
-                        <MenuItem Header="✏️ Редактировать" Visibility="{Binding CanEdit}" Click="MsgMenuEdit_Click"/>
-                        <MenuItem Header="💾 Сохранить как..." Visibility="{Binding MediaActionsVisible}" Click="MsgMenuSaveAs_Click"/>
-                        <MenuItem Header="📂 Показать в папке" Visibility="{Binding MediaActionsVisible}" Click="MsgMenuShowInFolder_Click"/>
-                        <MenuItem Header="📋 Скопировать текст" Click="MsgMenuCopy_Click"/>
-                        <Separator/>
-                        <MenuItem Header="🗑️ Удалить" Foreground="#FF5C7A" Click="MsgMenuDelete_Click"/>
-                    </ContextMenu>
-                </Border.ContextMenu>
-                <StackPanel MaxWidth="{Binding WrapWidth}">
-                    <TextBlock Text="{Binding Author}" FontSize="11" FontWeight="Bold"
-                               Foreground="{Binding AuthorColor}" Visibility="{Binding AuthorVisible}"/>
-                    <TextBlock Text="{Binding Quote}" FontSize="11" Foreground="#2EA6FF"
-                               TextWrapping="Wrap" Cursor="Hand" Visibility="{Binding QuoteVisible}"
-                               Tag="{Binding Id}" MouseLeftButtonUp="Quote_Click"/>
-                    <!-- Встроенное превью картинки / стикера / кружочка с ограничением 340px для экономии RAM -->
-                    <Border CornerRadius="8" Margin="0,4" MaxWidth="340" MaxHeight="280"
-                            Visibility="{Binding ImageVisible}" Cursor="Hand"
-                            Tag="{Binding Id}" MouseLeftButtonUp="Image_Click">
-                        <Image Source="{Binding ImagePath, Converter={StaticResource ThumbConv}, ConverterParameter=340}" Stretch="Uniform" HorizontalAlignment="Left"/>
-                    </Border>
-                    <TextBlock Text="{Binding MediaHint}" FontSize="12" Foreground="#2EA6FF"
-                               Cursor="Hand" Visibility="{Binding MediaVisible}"
-                               Tag="{Binding Id}" MouseLeftButtonUp="Media_Click"/>
-                    <TextBlock local:Linkifier.Text="{Binding Text}" FontSize="13" Foreground="#E8ECF1" TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                        <TextBlock Text="{Binding Time}" FontSize="10" Foreground="#8B949E"/>
-                        <TextBlock Text="  reply" FontSize="10" Foreground="#2EA6FF" Cursor="Hand"
-                                   Tag="{Binding Id}" MouseLeftButtonUp="Reply_Click"/>
+            <StackPanel Margin="0,2">
+                <!-- Центрированный разделитель даты (например: 18 октября / Сегодня) -->
+                <Border Background="#17212B" CornerRadius="10" Padding="12,3"
+                        HorizontalAlignment="Center" Margin="0,4,0,6"
+                        Visibility="{Binding DateSeparatorVisible}">
+                    <TextBlock Text="{Binding DateSeparator}" Foreground="#7F8C99" FontSize="11" FontWeight="SemiBold"/>
+                </Border>
+
+                <!-- Сообщение в бабле -->
+                <Border Background="{Binding Bubble}" CornerRadius="{Binding BubbleRadius}" Padding="10,7" Margin="4,1"
+                        HorizontalAlignment="{Binding Align}">
+                    <Border.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="↩ Ответить" Click="MsgMenuReply_Click"/>
+                            <MenuItem Header="✏️ Редактировать" Visibility="{Binding CanEdit}" Click="MsgMenuEdit_Click"/>
+                            <MenuItem Header="💾 Сохранить как..." Visibility="{Binding MediaActionsVisible}" Click="MsgMenuSaveAs_Click"/>
+                            <MenuItem Header="📂 Показать в папке" Visibility="{Binding MediaActionsVisible}" Click="MsgMenuShowInFolder_Click"/>
+                            <MenuItem Header="📋 Скопировать текст" Click="MsgMenuCopy_Click"/>
+                            <Separator/>
+                            <MenuItem Header="🗑️ Удалить" Foreground="#FF5C7A" Click="MsgMenuDelete_Click"/>
+                        </ContextMenu>
+                    </Border.ContextMenu>
+                    <StackPanel MaxWidth="{Binding WrapWidth}">
+                        <!-- Автор (в группах) -->
+                        <TextBlock Text="{Binding Author}" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{Binding AuthorColor}" Visibility="{Binding AuthorVisible}" Margin="0,0,0,2"/>
+
+                        <!-- Цитата / Реплай в стиле Telegram: плашка с левой акцентной полосой -->
+                        <Border BorderBrush="#2EA6FF" BorderThickness="2.5,0,0,0" Background="#121B26" CornerRadius="0,6,6,0"
+                                Padding="8,4" Margin="0,2,0,4" Cursor="Hand" Visibility="{Binding QuoteVisible}"
+                                Tag="{Binding Id}" MouseLeftButtonUp="Quote_Click">
+                            <TextBlock Text="{Binding Quote}" FontSize="11" Foreground="#2EA6FF" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <!-- Встроенное превью картинки / стикера / медиа -->
+                        <Border CornerRadius="8" Margin="0,4" MaxWidth="340" MaxHeight="280"
+                                Visibility="{Binding ImageVisible}" Cursor="Hand"
+                                Tag="{Binding Id}" MouseLeftButtonUp="Image_Click">
+                            <Image Source="{Binding ImagePath, Converter={StaticResource ThumbConv}, ConverterParameter=340}" Stretch="Uniform" HorizontalAlignment="Left"/>
+                        </Border>
+                        <TextBlock Text="{Binding MediaHint}" FontSize="12" Foreground="#2EA6FF"
+                                   Cursor="Hand" Visibility="{Binding MediaVisible}"
+                                   Tag="{Binding Id}" MouseLeftButtonUp="Media_Click" Margin="0,2"/>
+
+                        <!-- Текст сообщения -->
+                        <TextBlock local:Linkifier.Text="{Binding Text}" FontSize="13" Foreground="#F5F5F5" TextWrapping="Wrap" LineHeight="18"/>
+
+                        <!-- Нижняя строка: Время и статус прочтения (✓✓) аккуратно справа -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="8,2,0,0">
+                            <TextBlock Text="{Binding Time}" FontSize="10" Foreground="{Binding TimeColor}"/>
+                            <TextBlock Text="{Binding StatusIcon}" FontSize="10" Foreground="{Binding TimeColor}" Margin="4,0,0,0"
+                                       Visibility="{Binding StatusVisible}"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
+            </StackPanel>
         </DataTemplate>
     </Window.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="LeftCol" Width="280"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-        <Border Grid.Column="0" Background="#11151C">
-            <DockPanel Margin="10">
+
+        <!-- ЛЕВАЯ КОЛОНКА: Папки, Поиск, Список чатов -->
+        <Border Grid.Column="0" Background="#17212B">
+            <DockPanel Margin="10,10,10,6">
+                <!-- Полоса папок -->
                 <WrapPanel x:Name="FolderBar" DockPanel.Dock="Top" Margin="0,0,0,8"/>
-                <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Style="{StaticResource DarkBox}"
-                         Margin="0,0,0,8" TextChanged="SearchBox_TextChanged"/>
-                <ListBox x:Name="DialogList" Background="#11151C" Foreground="#E8ECF1"
+
+                <!-- Поле поиска -->
+                <Border DockPanel.Dock="Top" Background="#242F3D" CornerRadius="14" Margin="0,0,0,8" Padding="6,3">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="🔍" FontSize="11" Foreground="#708499" VerticalAlignment="Center" Margin="6,0,4,0"/>
+                        <Grid Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="SearchPlaceholder" Text="Поиск..." FontSize="12" Foreground="#708499"
+                                       VerticalAlignment="Center" Margin="4,0,0,0" IsHitTestVisible="False"/>
+                            <TextBox x:Name="SearchBox" Style="{StaticResource SeamlessBox}" FontSize="12" Padding="4,4"
+                                     TextChanged="SearchBox_TextChanged"/>
+                        </Grid>
+                        <Button x:Name="SearchClearBtn" Grid.Column="2" Content="✕" Width="20" Height="20"
+                                Style="{StaticResource MiniGhostBtn}" Visibility="Collapsed"
+                                Click="SearchClearBtn_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- Список диалогов -->
+                <ListBox x:Name="DialogList" Background="#17212B" Foreground="#F5F5F5"
                          BorderThickness="0" SelectionChanged="DialogList_SelectionChanged"
                          ItemTemplate="{StaticResource DialogRowTpl}"
+                         ItemContainerStyle="{StaticResource DialogListItemStyle}"
                          VirtualizingStackPanel.IsVirtualizing="True"
                          VirtualizingStackPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel"
@@ -146,7 +361,9 @@
                 </ListBox>
             </DockPanel>
         </Border>
-        <Grid Grid.Column="1" Margin="14,12,14,10">
+
+        <!-- ПРАВАЯ ОБЛАСТЬ: Чат -->
+        <Grid Grid.Column="1" Margin="14,10,14,10">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -154,22 +371,38 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+
+            <!-- Шапка чата с аватаркой, именем и статусом -->
             <Grid Grid.Row="0" Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Button x:Name="TogglePanelBtn" Content="☰" Style="{StaticResource GhostBtn}"
-                        Padding="7,3" Margin="0,0,10,0" ToolTip="Компактный режим (скрыть/показать список чатов)"
+                        Padding="8,5" Margin="0,0,10,0" ToolTip="Компактный режим (скрыть/показать список чатов)"
                         Click="TogglePanel_Click"/>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock x:Name="ChatTitle" Text="Select chat"
-                               FontSize="16" FontWeight="Bold" Foreground="#E8ECF1"/>
+                <!-- Аватарка выбранного чата в шапке -->
+                <Grid Grid.Column="1" x:Name="HeaderAvatar" Width="36" Height="36" Margin="0,0,10,0" VerticalAlignment="Center" Visibility="Collapsed">
+                    <Ellipse x:Name="HeaderAvatarBg" Fill="#2EA6FF"/>
+                    <TextBlock x:Name="HeaderAvatarInitials" Text="TG" Foreground="White" FontSize="13" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Ellipse x:Name="HeaderAvatarPhoto" Visibility="Collapsed">
+                        <Ellipse.Fill>
+                            <ImageBrush x:Name="HeaderAvatarBrush" Stretch="UniformToFill"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                </Grid>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock x:Name="ChatTitle" Text="Выберите чат"
+                               FontSize="15" FontWeight="SemiBold" Foreground="#F5F5F5" TextTrimming="CharacterEllipsis"/>
                     <TextBlock x:Name="ChatSub" Text="" FontSize="11"
-                               Foreground="#8B949E"/>
+                               Foreground="#708499" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
                 </StackPanel>
             </Grid>
-            <Grid Grid.Row="1" Margin="0,0,0,10">
+
+            <!-- Лента сообщений + плавающая кнопка Вниз -->
+            <Grid Grid.Row="1" Margin="0,0,0,8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -177,45 +410,88 @@
                 <Button x:Name="LoadMoreBtn" Grid.Row="0" Content="⬆ Загрузить более ранние сообщения"
                         Style="{StaticResource GhostBtn}" Foreground="#2EA6FF" Margin="0,0,0,6"
                         Visibility="Collapsed" Click="LoadMore_Click"/>
-                <ListBox x:Name="FeedList" Grid.Row="1" Background="#0B0E13"
-                         Foreground="#E8ECF1" BorderThickness="0"
+                <ListBox x:Name="FeedList" Grid.Row="1" Background="#0E1621"
+                         Foreground="#F5F5F5" BorderThickness="0"
                          VirtualizingStackPanel.IsVirtualizing="True"
                          VirtualizingStackPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel"
                          ScrollViewer.CanContentScroll="False"
                          ItemTemplate="{StaticResource MsgRowTpl}"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+
+                <!-- Плавающая кнопка возврата вниз ↓ -->
+                <Button x:Name="ScrollDownBtn" Grid.Row="1" Width="36" Height="36"
+                        Style="{StaticResource FloatingBtn}"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Margin="0,0,16,16" Visibility="Collapsed"
+                        ToolTip="Перейти к последним сообщениям"
+                        Click="ScrollDownBtn_Click">
+                    <TextBlock Text="↓" FontSize="16" FontWeight="Bold" Foreground="#2EA6FF" Margin="0,-2,0,0"/>
+                </Button>
             </Grid>
-            <StackPanel x:Name="ReplyBar" Grid.Row="2" Orientation="Horizontal"
-                        Background="#1A2230" Margin="0,0,0,6" Visibility="Collapsed">
-                <TextBlock x:Name="ReplyLabel" Foreground="#8B949E" FontStyle="Italic"
-                           VerticalAlignment="Center" Margin="10,6,0,6"/>
-                <Button Content="X" Style="{StaticResource GhostBtn}" Margin="4,2"
-                        Click="ReplyClear_Click"/>
-            </StackPanel>
-            <DockPanel Grid.Row="3" Margin="0,0,0,4">
-                <Button Content="Send" DockPanel.Dock="Right" Style="{StaticResource GhostBtn}"
-                        Background="#2EA6FF" Foreground="White" FontWeight="Bold"
-                        Margin="8,0,0,0" Padding="16,6" Click="Send_Click"/>
-                <Button Content="+" DockPanel.Dock="Right" Style="{StaticResource GhostBtn}"
-                        Margin="8,0,0,0" Click="Attach_Click"/>
-                <TextBox x:Name="InputBox" Style="{StaticResource DarkBox}" Padding="10,8"
-                         VerticalContentAlignment="Center"
-                         PreviewKeyDown="InputBox_PreviewKeyDown"
-                         KeyDown="InputBox_KeyDown">
-                    <TextBox.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="📋 Вставить (текст / фото)" Click="InputContextMenu_Paste_Click"/>
-                            <MenuItem Header="📄 Копировать" Click="InputContextMenu_Copy_Click"/>
-                            <MenuItem Header="✂️ Вырезать" Click="InputContextMenu_Cut_Click"/>
-                            <Separator/>
-                            <MenuItem Header="🗑️ Очистить" Click="InputContextMenu_Clear_Click"/>
-                        </ContextMenu>
-                    </TextBox.ContextMenu>
-                </TextBox>
-            </DockPanel>
-            <TextBlock x:Name="StatusLabel" Grid.Row="4" Foreground="#8B949E"
-                       FontSize="11" Margin="0,2,0,0"/>
+
+            <!-- Полоса ответа/редактирования (Reply Bar) -->
+            <Border x:Name="ReplyBar" Grid.Row="2" Background="#17212B" CornerRadius="8" Margin="0,0,0,6"
+                    BorderBrush="#2EA6FF" BorderThickness="3,0,0,0" Padding="8,4" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="ReplyTitle" Text="Ответ на сообщение" FontSize="11" FontWeight="SemiBold" Foreground="#2EA6FF"/>
+                        <TextBlock x:Name="ReplyLabel" Foreground="#7F8C99" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="✕" Width="22" Height="22" Style="{StaticResource MiniGhostBtn}"
+                            Padding="0" VerticalAlignment="Center" HorizontalAlignment="Right" Click="ReplyClear_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Блок ввода сообщения -->
+            <Border Grid.Row="3" Background="#17212B" CornerRadius="18" BorderBrush="#242F3D" BorderThickness="1"
+                    Padding="4,2" Margin="0,0,0,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Кнопка прикрепления файла 📎 -->
+                    <Button Content="📎" Grid.Column="0" Width="34" Height="34" Style="{StaticResource CircleGhostBtn}"
+                            ToolTip="Прикрепить файл или фото" Click="Attach_Click"/>
+
+                    <!-- Поле ввода с подсказкой Watermark -->
+                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="InputPlaceholder" Text="Написать сообщение..." FontSize="13" Foreground="#708499"
+                                   Margin="8,0,0,0" IsHitTestVisible="False" VerticalAlignment="Center"/>
+                        <TextBox x:Name="InputBox" Style="{StaticResource SeamlessBox}" Padding="8,6"
+                                 VerticalContentAlignment="Center"
+                                 PreviewKeyDown="InputBox_PreviewKeyDown"
+                                 KeyDown="InputBox_KeyDown"
+                                 TextChanged="InputBox_TextChanged">
+                            <TextBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="📋 Вставить (текст / фото)" Click="InputContextMenu_Paste_Click"/>
+                                    <MenuItem Header="📄 Копировать" Click="InputContextMenu_Copy_Click"/>
+                                    <MenuItem Header="✂️ Вырезать" Click="InputContextMenu_Cut_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="🗑️ Очистить" Click="InputContextMenu_Clear_Click"/>
+                                </ContextMenu>
+                            </TextBox.ContextMenu>
+                        </TextBox>
+                    </Grid>
+
+                    <!-- Кнопка отправки ➤ -->
+                    <Button x:Name="SendBtn" Grid.Column="2" Width="34" Height="34" Style="{StaticResource CircleAccentBtn}"
+                            ToolTip="Отправить (Enter)" Click="Send_Click">
+                        <TextBlock Text="➤" FontSize="13" Margin="2,0,0,0"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Строка статуса -->
+            <TextBlock x:Name="StatusLabel" Grid.Row="4" Foreground="#708499"
+                       FontSize="11" Margin="4,2,0,0"/>
         </Grid>
     </Grid>
 </Window>

@@ -55,6 +55,38 @@ public sealed class DialogRow : INotifyPropertyChanged
         }
     }
 
+    private bool _isMuted;
+    public bool IsMuted
+    {
+        get => _isMuted;
+        set
+        {
+            if (_isMuted != value)
+            {
+                _isMuted = value;
+                OnPropertyChanged(nameof(IsMuted));
+                OnPropertyChanged(nameof(MutedVisible));
+                OnPropertyChanged(nameof(BadgeBackground));
+            }
+        }
+    }
+
+    private string _time = "";
+    public string Time
+    {
+        get => _time;
+        set
+        {
+            if (_time != value)
+            {
+                _time = value;
+                OnPropertyChanged(nameof(Time));
+            }
+        }
+    }
+
+    public bool MutedVisible => IsMuted;
+    public string BadgeBackground => IsMuted ? "#708499" : "#2EA6FF";
     public bool PinnedVisible => IsPinned;
     public string NameWeight => Unread > 0 ? "Bold" : "Normal";
     public bool BadgeVisible => Unread > 0;
@@ -97,6 +129,12 @@ public sealed class MsgRow : INotifyPropertyChanged
     public bool CanEdit => Out;
     public bool HasMedia { get; init; }
     public bool MediaActionsVisible => HasMedia;
+    public string DateSeparator { get; init; } = "";
+    public bool DateSeparatorVisible => !string.IsNullOrEmpty(DateSeparator);
+    public Avalonia.CornerRadius BubbleRadius => Out ? new Avalonia.CornerRadius(14, 14, 4, 14) : new Avalonia.CornerRadius(14, 14, 14, 4);
+    public string StatusIcon => Out ? "✓✓" : "";
+    public bool StatusVisible => Out;
+    public string TimeColor => Out ? "#A0C2E8" : "#708499";
 
     private string _imagePath = "";
     public string ImagePath
