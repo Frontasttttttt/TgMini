@@ -59,4 +59,5 @@ public sealed record IncomingMessage(
     DateTime Date,
     MediaKind Kind,
     string MediaLabel,
-    string Author);
+    string Author,
+    bool IsEdit = false);

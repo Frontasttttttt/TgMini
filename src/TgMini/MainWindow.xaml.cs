@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using TgMini.Core;
 using TgMini.Core.Models;
@@ -126,7 +127,19 @@ public sealed class DialogRow : INotifyPropertyChanged
 public sealed class MsgRow : INotifyPropertyChanged
 {
     public int Id { get; init; }
-    public string Text { get; init; } = "";
+    private string _text = "";
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            if (_text != value)
+            {
+                _text = value;
+                OnPropertyChanged(nameof(Text));
+            }
+        }
+    }
     public string Author { get; init; } = "";
     public string AuthorColor { get; init; } = "#8B949E";
     public string AuthorVisible => Author.Length > 0 ? "Visible" : "Collapsed";
@@ -218,6 +231,8 @@ public partial class MainWindow : Window
 
     private TrayHelper? _tray;
     private bool _isQuitting;
+    private readonly SemaphoreSlim _historyLock = new(1, 1);
+    private string? _currentLightboxPath;
 
     public MainWindow()
     {
@@ -342,6 +357,12 @@ public partial class MainWindow : Window
             setup.ShowDialog();
         }
         Status("Подключаюсь к Telegram...");
+        if (_bridge != null)
+        {
+            _bridge.Message -= OnLiveMessage;
+            _bridge.Dispose();
+            _bridge = null;
+        }
         var bridge = new WTelegramBridge(_cfg);
         bridge.Prompt = AskPrompt;
         bridge.Message += OnLiveMessage;
@@ -482,7 +503,7 @@ public partial class MainWindow : Window
             if (d is not null)
             {
                 _all.Remove(d);
-                unread = _peer == m.ChatId || m.Out ? 0 : d.Unread + 1;
+                unread = _peer == m.ChatId || m.Out ? 0 : (m.IsEdit ? d.Unread : d.Unread + 1);
                 _all.Insert(0, d with { LastMessage = m.Text, Unread = unread, Date = m.Date });
             }
             else
@@ -515,9 +536,31 @@ public partial class MainWindow : Window
 
             PaintDialogs();
 
+            // Если сообщение отредактировано (IsEdit) — обновляем текст на месте без шума
+            if (m.IsEdit)
+            {
+                if (_peer == m.ChatId)
+                {
+                    var existing = _feed.FirstOrDefault(r => r.Id == m.MsgId);
+                    if (existing != null)
+                    {
+                        var text = m.Kind == MediaKind.Text ? m.Text : (m.Text.Length > 0 && !m.Text.StartsWith('[') ? m.Text : "");
+                        existing.Text = text;
+                    }
+                    else
+                    {
+                        _ = LoadHistoryAsync();
+                    }
+                }
+                return;
+            }
+
             if (_peer == m.ChatId)
             {
-                _ = LoadHistoryAsync();
+                if (!_feed.Any(r => r.Id == m.MsgId))
+                {
+                    _ = LoadHistoryAsync();
+                }
                 if (_bridge is not null && !m.Out) _ = _bridge.MarkReadAsync(_peer);
             }
 
@@ -813,6 +856,7 @@ public partial class MainWindow : Window
     private async Task LoadHistoryAsync()
     {
         if (_bridge is null || _peer == 0) return;
+        await _historyLock.WaitAsync();
         try
         {
             var msgs = await _bridge.GetHistoryAsync(_peer, 60, offsetId: 0);
@@ -823,6 +867,10 @@ public partial class MainWindow : Window
             ChatSub.Text = $"{msgs.Count} сообщений";
         }
         catch (Exception e) { Status($"history err: {e.Message}"); }
+        finally
+        {
+            _historyLock.Release();
+        }
     }
 
     private async void LoadMore_Click(object sender, RoutedEventArgs e)
@@ -841,7 +889,12 @@ public partial class MainWindow : Window
             }
             else
             {
-                _oldestMsgId = older[0].Id;
+                var minOlder = older.MinBy(x => x.Id);
+                if (minOlder != null && minOlder.Id < _oldestMsgId)
+                    _oldestMsgId = minOlder.Id;
+                else if (older.Count > 0)
+                    _oldestMsgId = older[0].Id;
+
                 _hasMoreHistory = older.Count >= 60;
                 LoadMoreBtn.Visibility = _hasMoreHistory ? Visibility.Visible : Visibility.Collapsed;
 
@@ -850,10 +903,11 @@ public partial class MainWindow : Window
                     _byId[m.Id] = m;
                 }
 
-                // Вставляем более старые сообщения в начало _feed
+                // Вставляем более старые сообщения в начало _feed (пропуская дубликаты)
                 for (var i = older.Count - 1; i >= 0; i--)
                 {
                     var m = older[i];
+                    if (_feed.Any(r => r.Id == m.Id)) continue;
                     var row = ToRow(m);
                     _feed.Insert(0, row);
                     EnsureMediaThumb(row, m);
@@ -981,7 +1035,149 @@ public partial class MainWindow : Window
             return;
         }
         var thumb = MediaCache.ThumbPath(_peer, id);
-        if (File.Exists(thumb)) OpenExternal(thumb);
+        if (File.Exists(thumb))
+        {
+            OpenLightbox(thumb, $"Фото #{id}");
+        }
+        else if (_bridge is not null)
+        {
+            Status("Загружаю фото...");
+            var path = await _bridge.EnsureThumbAsync(_peer, id);
+            Status("");
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                OpenLightbox(path, $"Фото #{id}");
+            }
+        }
+    }
+
+    private void OpenLightbox(string path, string title)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.UriSource = new Uri(path);
+            bi.EndInit();
+            bi.Freeze();
+
+            _currentLightboxPath = path;
+            PhotoViewerImage.Source = bi;
+            PhotoViewerTitle.Text = title;
+            var fi = new FileInfo(path);
+            PhotoViewerInfo.Text = $"{bi.PixelWidth} × {bi.PixelHeight} • {fi.Length / 1024} KB";
+            PhotoViewerOverlay.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            Status($"Не удалось открыть фото: {ex.Message}");
+        }
+    }
+
+    private void CloseLightbox()
+    {
+        PhotoViewerOverlay.Visibility = Visibility.Collapsed;
+        PhotoViewerImage.Source = null;
+        _currentLightboxPath = null;
+    }
+
+    private void PhotoViewerClose_Click(object sender, RoutedEventArgs e) => CloseLightbox();
+
+    private void PhotoViewerOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == PhotoViewerOverlay || (e.OriginalSource is Border bd && bd.Parent == PhotoViewerOverlay))
+        {
+            CloseLightbox();
+        }
+    }
+
+    private void PhotoViewerSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentLightboxPath) || !File.Exists(_currentLightboxPath)) return;
+        var ext = Path.GetExtension(_currentLightboxPath);
+        if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+        var sfd = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = Path.GetFileName(_currentLightboxPath),
+            Filter = $"Изображение (*{ext})|*{ext}|Все файлы (*.*)|*.*",
+            DefaultExt = ext
+        };
+        if (sfd.ShowDialog() == true)
+        {
+            try
+            {
+                File.Copy(_currentLightboxPath, sfd.FileName, overwrite: true);
+                Status($"Сохранено: {Path.GetFileName(sfd.FileName)}");
+            }
+            catch (Exception ex)
+            {
+                Status($"Ошибка сохранения: {ex.Message}");
+            }
+        }
+    }
+
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            if (PhotoViewerOverlay.Visibility == Visibility.Visible)
+            {
+                CloseLightbox();
+                e.Handled = true;
+            }
+            else if (_replyTo > 0 || _editMsgId > 0)
+            {
+                ReplyClear_Click(sender, e);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void Window_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            DropOverlay.Visibility = Visibility.Visible;
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+        else
+        {
+            DropOverlay.Visibility = Visibility.Collapsed;
+            e.Effects = DragDropEffects.None;
+        }
+    }
+
+    private void Window_DragLeave(object sender, DragEventArgs e)
+    {
+        DropOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private async void Window_Drop(object sender, DragEventArgs e)
+    {
+        DropOverlay.Visibility = Visibility.Collapsed;
+        if (_bridge is null || _peer == 0) return;
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+
+        var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+        if (files == null || files.Length == 0) return;
+
+        var rt = _replyTo;
+        _replyTo = 0;
+        _editMsgId = 0;
+        ReplyBar.Visibility = Visibility.Collapsed;
+
+        foreach (var p in files)
+        {
+            if (!File.Exists(p)) continue;
+            var prog = new Progress<(long Sent, long Total)>(x =>
+                Status($"Загрузка {Path.GetFileName(p)}: {(x.Total > 0 ? x.Sent * 100 / x.Total : 0)}%"));
+            var ok = await _bridge.SendFileAsync(_peer, p, replyTo: rt, progress: prog);
+            if (!ok) Status($"Не удалось отправить {Path.GetFileName(p)}");
+        }
+        await LoadHistoryAsync();
     }
 
     private async void Media_Click(object sender, MouseButtonEventArgs e)

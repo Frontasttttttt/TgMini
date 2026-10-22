@@ -21,6 +21,9 @@ public sealed class WTelegramBridge : IBridge
     private readonly Dictionary<long, ChatKind> _kinds = new();
     private readonly Dictionary<long, InputPeer> _peers = new();
     private readonly object _gate = new();
+    private readonly HashSet<(long ChatId, int MsgId)> _processedNewMessages = new();
+    private readonly LinkedList<(long ChatId, int MsgId)> _processedLru = new();
+    private const int MaxProcessedCache = 1000;
 
     /// <summary>Запрос "verification_code" | "password" | "first_name" при первом входе.</summary>
     public Func<string, string?>? Prompt { get; set; }
@@ -687,16 +690,33 @@ public sealed class WTelegramBridge : IBridge
         {
             foreach (var upd in u.UpdateList)
             {
-                Message? m = upd switch
-                {
-                    UpdateNewMessage unm => unm.message as Message,
-                    UpdateEditMessage uem => uem.message as Message,
-                    _ => null
-                };
+                bool isEdit = false;
+                Message? m = null; switch (upd) { case UpdateEditMessage uem: m = uem.message as Message; isEdit = true; break; case UpdateNewMessage unm: m = unm.message as Message; break; }
                 if (m is null) continue;
                 var isOut = IsOut(m);
                 var chatKey = Key(m.peer_id);
                 var senderKey = m.from_id is null ? 0 : Key(m.from_id);
+
+                if (!isEdit)
+                {
+                    lock (_gate)
+                    {
+                        var msgKey = (chatKey, m.id);
+                        if (!_processedNewMessages.Add(msgKey))
+                        {
+                            // Дубликат обновления от сервера или реконнекта — пропускаем
+                            continue;
+                        }
+                        _processedLru.AddLast(msgKey);
+                        if (_processedLru.Count > MaxProcessedCache)
+                        {
+                            var oldest = _processedLru.First!.Value;
+                            _processedLru.RemoveFirst();
+                            _processedNewMessages.Remove(oldest);
+                        }
+                    }
+                }
+
                 string name;
                 lock (_gate)
                     name = isOut ? "Вы" : _names.GetValueOrDefault(senderKey, _names.GetValueOrDefault(chatKey, "Telegram"));
@@ -708,7 +728,8 @@ public sealed class WTelegramBridge : IBridge
                                 text.Contains("@" + _meUsername, StringComparison.OrdinalIgnoreCase);
                 Message?.Invoke(new IncomingMessage(chatKey, m.id, isOut, senderKey, name, text,
                     isGroup, mentioned, m.date, kind, label,
-                    isOut ? "Вы" : (kind == MediaKind.Text ? "" : name)));
+                    isOut ? "Вы" : (kind == MediaKind.Text ? "" : name),
+                    isEdit));
             }
         }
         catch (Exception e) { Console.WriteLine($"updates err: {e.Message}"); }
@@ -717,7 +738,15 @@ public sealed class WTelegramBridge : IBridge
 
     public void Dispose()
     {
-        try { _c?.Dispose(); } catch { /* ignore */ }
+        try
+        {
+            if (_c is not null)
+            {
+                _c.OnUpdates -= HandleUpdates;
+                _c.Dispose();
+            }
+        }
+        catch { /* ignore */ }
         _c = null;
     }
 
@@ -757,4 +786,5 @@ public sealed class WTelegramBridge : IBridge
         return gen2.GetGraphic(10);
     }
 }
+
 

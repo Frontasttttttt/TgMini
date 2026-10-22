@@ -6,7 +6,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         Title="TG Mini" Height="640" Width="900" MinWidth="420" MinHeight="380"
         FontFamily="Segoe UI Emoji, Segoe UI"
-        Background="#0E1621" WindowStartupLocation="CenterScreen">
+        Background="#0E1621" WindowStartupLocation="CenterScreen"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver" DragLeave="Window_DragLeave"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
     <Window.Resources>
         <local:ThumbConverter x:Key="ThumbConv"/>
 
@@ -594,6 +596,53 @@
             <!-- Строка статуса -->
             <TextBlock x:Name="StatusLabel" Grid.Row="4" Foreground="#708499"
                        FontSize="11" Margin="4,2,0,0"/>
+        </Grid>
+
+        <!-- Дроп-зона при перетаскивании файлов (Drag & Drop) -->
+        <Border x:Name="DropOverlay" Grid.ColumnSpan="2" Panel.ZIndex="990"
+                Background="#E60E1621" Visibility="Collapsed" IsHitTestVisible="False">
+            <Grid Margin="24">
+                <Rectangle Stroke="#2EA6FF" StrokeThickness="2" StrokeDashArray="4 2"
+                           RadiusX="16" RadiusY="16" Fill="#142EA6FF"/>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="📥" FontSize="44" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                    <TextBlock Text="Перетащите файлы сюда" FontSize="16" FontWeight="SemiBold"
+                               Foreground="#2EA6FF" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Файлы будут отправлены в текущий чат" FontSize="12"
+                               Foreground="#708499" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Полноэкранный просмотрщик изображений (In-App Lightbox) -->
+        <Grid x:Name="PhotoViewerOverlay" Grid.ColumnSpan="2" Panel.ZIndex="1000"
+              Background="#E6080E14" Visibility="Collapsed"
+              MouseLeftButtonDown="PhotoViewerOverlay_MouseDown">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Верхняя панель: заголовок, инфо, сохранить, закрыть -->
+            <Grid Grid.Row="0" Margin="16,12,16,8">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="PhotoViewerTitle" Text="Просмотр фото" Foreground="#F5F5F5"
+                               FontSize="14" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="PhotoViewerInfo" Text="" Foreground="#708499" FontSize="12" Margin="12,2,0,0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="PhotoViewerSaveBtn" Content="💾 Сохранить" Style="{StaticResource MiniGhostBtn}"
+                            Padding="10,6" Margin="0,0,8,0" Click="PhotoViewerSave_Click"/>
+                    <Button x:Name="PhotoViewerCloseBtn" Content="✕" Width="32" Height="32" Style="{StaticResource MiniGhostBtn}"
+                            FontSize="14" Click="PhotoViewerClose_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Контейнер изображения -->
+            <Border Grid.Row="1" Margin="24,8,24,24" ClipToBounds="True">
+                <Image x:Name="PhotoViewerImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+            </Border>
         </Grid>
     </Grid>
 </Window>

@@ -114,7 +114,19 @@ public sealed class DialogRow : INotifyPropertyChanged
 public sealed class MsgRow : INotifyPropertyChanged
 {
     public int Id { get; init; }
-    public string Text { get; init; } = "";
+    private string _text = "";
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            if (_text != value)
+            {
+                _text = value;
+                OnPropertyChanged(nameof(Text));
+            }
+        }
+    }
     public string Author { get; init; } = "";
     public string AuthorColor { get; init; } = "#8B949E";
     public bool AuthorVisible => Author.Length > 0;

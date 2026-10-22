@@ -173,6 +173,7 @@ public partial class MainWindow : Window
         // Диспоузим предыдущий мост, чтобы закрыть старый Client, сокеты и отпустить файл сессии
         if (_bridge is not null)
         {
+            _bridge.Message -= OnLiveMessage;
             try { _bridge.Dispose(); } catch { }
             _bridge = null;
         }
@@ -225,6 +226,7 @@ public partial class MainWindow : Window
         ReloginBtn.IsVisible = false;
         if (_bridge is not null)
         {
+            _bridge.Message -= OnLiveMessage;
             try { _bridge.Dispose(); } catch { }
             _bridge.ResetSession();
             _bridge = null;
@@ -383,7 +385,7 @@ public partial class MainWindow : Window
             if (d is not null)
             {
                 var idx = _all.IndexOf(d);
-                var unread = d.Unread + (m.ChatId == _peer ? 0 : 1);
+                var unread = d.Unread + (m.ChatId == _peer || m.Out || m.IsEdit ? 0 : 1);
                 _all[idx] = d with { LastMessage = m.Text, Unread = unread };
                 if (_rowCache.TryGetValue(m.ChatId, out var row))
                 {
@@ -393,18 +395,32 @@ public partial class MainWindow : Window
                 }
             }
 
+            if (m.IsEdit)
+            {
+                if (m.ChatId == _peer)
+                {
+                    var existing = _feed.FirstOrDefault(r => r.Id == m.MsgId);
+                    if (existing != null)
+                    {
+                        existing.Text = m.Text;
+                    }
+                }
+                return;
+            }
+
             if (m.ChatId == _peer)
             {
+                if (_feed.Any(r => r.Id == m.MsgId)) return;
                 var row = new MsgRow
                 {
                     Id = m.MsgId,
                     Text = m.Text,
-                    Author = m.Name,
+                    Author = m.Out ? "" : m.Name,
                     AuthorColor = AuthorColors[(m.Name.GetHashCode() & 0x7FFFFFFF) % AuthorColors.Length],
-                    Bubble = "#1A2230",
-                    Align = "Left",
+                    Bubble = m.Out ? "#1C3A5E" : "#1A2230",
+                    Align = m.Out ? "Right" : "Left",
                     Time = DateTime.Now.ToString("HH:mm"),
-                    Out = false
+                    Out = m.Out
                 };
                 _feed.Add(row);
                 FeedScroll.ScrollToEnd();
@@ -661,6 +677,7 @@ public partial class MainWindow : Window
                 for (var i = older.Count - 1; i >= 0; i--)
                 {
                     var m = older[i];
+                    if (_feed.Any(r => r.Id == m.Id)) continue;
                     var row = ToRow(m);
                     _feed.Insert(0, row);
                     EnsureMediaThumb(row, m);
@@ -867,19 +884,8 @@ public partial class MainWindow : Window
 
             if (ok)
             {
-                var row = new MsgRow
-                {
-                    Id = Environment.TickCount,
-                    Text = text,
-                    Author = "",
-                    Bubble = "#1C3A5E",
-                    Align = "Right",
-                    Time = DateTime.Now.ToString("HH:mm"),
-                    Out = true
-                };
-                _feed.Add(row);
-                FeedScroll.ScrollToEnd();
                 Status("");
+                await LoadHistoryAsync();
             }
             else
             {
